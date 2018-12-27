@@ -1,8 +1,9 @@
 // Prototype
 
 // Monsters -> ground, air, Weapons, One Stage, Lightnings, Lava, Animations (p5.game -> animation)
+// canvas - createCanvas() -> getElementById to canvas var
 
-let image_background = image_block = null,
+let image_background = image_block = image_healthBottle = mainFont = null,
 	image_lava = [],
 	player = {
 		idle: null,
@@ -10,9 +11,7 @@ let image_background = image_block = null,
 		jump: null,
 		fly: null,
 		OBJECT: null
-	},
-	mainFont = null,
-	image_healthBottle = [];
+	}
 
 const settings = {
 	sizes: {
@@ -256,41 +255,42 @@ class Hero extends Creature {
 }
 
 class Item extends Element {
-	constructor(animation = null, isVisible, typenum) {
+	constructor(model, isVisible, typenum) {
 		super(false, 0, 0, typenum)
 
-		this.size = 25;
+		this.size = 35;
 		this.isVisible = isVisible;
+		this.model = model
 
-		this.animation = animation || false;
-		if(this.animation) {
-			this.currentFrame = 0;
-			this.currentSprite = 0;
-		}
-
-		this.pos = {
-			x: 150,
-			y: 150
-		}
+		this.pos = null;
 
 		// TOOD: Shake
 	}
 
 	render() {
-		if(this.animation) {
-			if(++this.currentFrame % 10 === 0 && ++this.currentSprite > this.animation.length - 1) {
-				this.currentSprite = 0;
-			}
-			image(this.animation[this.currentSprite], this.pos.x, this.pos.y, this.size, this.size);
-		} else {
+		if(!this.pos) this.pos = this.genPos();
 
-		}
+		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
 
 		return this;
 	}
 
 	genPos() {
+		function aa() {
+			let a = a => floor(random(a)),
+			b = a(map.length), // y in the array
+			c = a(map[0].length), // x in the array
+			d = map[b][c];
 
+			return (typeof d !== "object") ? aa() : d.object;
+		}
+
+		let a = aa();
+
+		return ({
+			x: a.pos.x,
+			y: a.pos.y - a.size
+		});
 	}
 }
 
@@ -307,12 +307,14 @@ function preload() {
 function setup() {
 	createCanvas(settings.sizes.width, settings.sizes.height);
 
-	image_background = loadImage('./assets/background.jpg');
-	image_block      = loadImage('./assets/block.png');
-	player.idle      = loadImage('./assets/hero/idle.gif');
-	player.run       = loadImage('./assets/hero/run.gif');
-	player.jump      = loadImage('./assets/hero/jump.png');
-	player.fly      = loadImage('./assets/hero/fly.gif');
+	image_background   = loadImage('./assets/background.jpg');
+	image_block        = loadImage('./assets/block.png');
+	image_healthBottle = loadImage('./assets/items/heal.png');
+	player.idle        = loadImage('./assets/hero/idle.gif');
+	player.run         = loadImage('./assets/hero/run.gif');
+	player.jump        = loadImage('./assets/hero/jump.png');
+	player.fly         = loadImage('./assets/hero/fly.gif');
+
 	[
 		'./assets/lava/1.png',
 		'./assets/lava/2.png',
@@ -362,17 +364,6 @@ function setup() {
 		image_lava.push(loadImage(io));
 	});
 
-	[
-		'./assets/healthBottle/1.png',
-		'./assets/healthBottle/2.png',
-		'./assets/healthBottle/3.png',
-		'./assets/healthBottle/4.png',
-		'./assets/healthBottle/5.png',
-		'./assets/healthBottle/6.png'
-	].forEach(io => {
-		image_healthBottle.push(loadImage(io));
-	})
-
 	player.OBJECT = new Hero;
 	items.push(new HealthBottle(true));
 }
@@ -408,7 +399,7 @@ function draw() {
 
 					arr2[il] = {
 						object: a,
-						index: ik
+						material: ik
 					}
 				} else { // use exists class
 					touchableElements.push(ik.object);
