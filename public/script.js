@@ -5,17 +5,18 @@
 	Weapons, Menu, Levels, Lightnings,
 	Lava, Sounds,
 	Animations, End Animations,
+	Mate, Monsters Portal
 
 	HUD -> Damage, Speed, Fireballs
 */
 
 let player = {
-		idle: null,
-		run: null,
-		jump: null,
-		fly: null,
-		OBJECT: null
-	}
+	idle: null,
+	run: null,
+	jump: null,
+	fly: null,
+	OBJECT: null
+}
 
 const settings = {
 	canvas: {
@@ -26,67 +27,97 @@ const settings = {
 	playerHBHeight: 17.5, // 17.5
 	gameAssets: {
 		BACKGROUND: {
+			type: "THEME",
 			model: null
 		},
 		BLOCK: {
 			id: 1,
+			type: "BLOCK",
 			model: null
 		},
 		LAVA: {
 			id: 2,
+			type: "BLOCK",
 			model: []
 		},
 		ARMOR_1: {
-			id: 21,
+			id: 20,
+			type: "ITEM",
 			health: 15,
 			model: null
 		},
 		ARMOR_2: {
-			id: 22,
+			id: 21,
+			type: "ITEM",
 			health: 25,
 			model: null
 		},
 		ARMOR_3: {
-			id: 23,
+			id: 22,
+			type: "ITEM",
 			health: 45,
 			model: null
 		},
+		HELMET: {
+			id: 23,
+			type: "ITEM",
+			health: 30,
+			model: null
+		},
+		BOOTS: {
+			id: 24,
+			type: "ITEM",
+			speed: 5,
+			limit: 600,
+			model: null
+		},
 		HEALTH_BOTTLE: {
-			id: 20,
+			id: 25,
+			type: "ITEM",
 			health: 120,
+			model: null
+		},
+		MATE_SPAWNER: {
+			name: "Mate",
+			id: 26,
+			type: "ITEM",
 			model: null
 		},
 		HERO_BULLET: {
 			id: 40,
+			type: "BULLET",
 			model: null
 		},
 		MONSTER_1_BULLET: {
 			id: 41,
+			type: "BULLET",
 			model: null
 		},
 		MONSTER_2_BULLET: {
 			id: 41,
+			type: "BULLET",
 			model: null
 		}
-	}
+	},
+	itemKeys: [
+		70, 71,
+		66, 78
+	]
 }
 
 let touchableElements = [],
 	items = {},
 	bullets = [],
-	bulletsID = 0;
+	bulletsID = 0,
+	itemsRefresh = {
+		started: false,
+		wait: 0,
+		delta: 0
+	}
 
 // 0 - void
 // 1 - block
 // 2 - lava
-
-// 20 - health bottle
-// 21 - Weak Armour
-// 22 - Good Armour
-// 23 - The best Armour
-
-// 40 - player bullet
-// 41 - monster bullet
 const map = [
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -94,7 +125,7 @@ const map = [
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
 	[1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
 
@@ -114,18 +145,11 @@ class Element {
 
 	predictObstacle(pos, width, height) {
 		let { x: px, y: py } = pos,
-			{ x: ex, y: ey } = this.pos,
-			b = 15; // padding
+			{ x: ex, y: ey } = this.pos;
 
 		if(
-			(
-				(py + height > ey && py < ey + this.size) &&
-				(px >= ex - b && px + width < ex + this.size + b)
-			) &&
-			(
-				(px + width > ex && px + width < ex + this.size) ||
-				(px < ex + this.size && px > ex)
-			)
+			(px + width >= ex) && (px <= ex + this.size) && // x (left, right)
+			(py + height >= ey) && (py <= ey + this.size) // y (top, bottom)
 		) {
 			return this.type;
 		}
@@ -171,8 +195,9 @@ class Lava extends Element {
 }
 
 class Creature {
-	constructor(maxHealth = 100, currentHealth, models, width, height, regenPower) {
+	constructor(race, maxHealth = 100, currentHealth, models, width, height, regenPower) {
 		this.isAlive = true;
+		this.race = race;
 
 		this.models = models;
 		this.model = this.models.idle;
@@ -204,8 +229,8 @@ class Creature {
 			this.regenPower = regenPower;
 		}
 
-		this.effects = [];
 		this.set = {
+			helmet: null,
 			armor: null
 		}
 	}
@@ -213,9 +238,10 @@ class Creature {
 	update() {
 		if(!this.isAlive) return this;
 
-		let testYPassed = true;
-		let testXPassed = true;
-		let damage = 0;
+		let testYPassed = true,
+			testXPassed = true,
+			damage = 0,
+			speed = this.speed + ((this.set.boots && this.set.boots.speed) || 1);
 
 		// Test y
 		touchableElements.forEach(io => {
@@ -229,7 +255,7 @@ class Creature {
 			),
 				xTest = io.predictObstacle( // x
 				{
-					x: this.pos.x + this.movement,
+					x: this.pos.x + this.movement * speed,
 					y: this.pos.y
 				},
 				this.width,
@@ -261,32 +287,62 @@ class Creature {
 						this.health += settings.gameAssets.HEALTH_BOTTLE.health;
 						if(this.health > this.maxHealth) this.health = this.maxHealth;
 					break;
-					case settings.gameAssets.ARMOR_1.id: // armor 1
+					case settings.gameAssets.ARMOR_1.id:
 						delete items.ARMOR_1;
 						this.set.armor = {
 							name: "ARMOR_1",
 							health: settings.gameAssets.ARMOR_1.health
 						}
 					break;
-					case settings.gameAssets.ARMOR_2.id: // armor 2
+					case settings.gameAssets.ARMOR_2.id:
 						delete items.ARMOR_2;
 						this.set.armor = {
 							name: "ARMOR_2",
 							health: settings.gameAssets.ARMOR_2.health
 						}
 					break;
-					case settings.gameAssets.ARMOR_3.id: // armor 3
+					case settings.gameAssets.ARMOR_3.id:
 						delete items.ARMOR_3;
 						this.set.armor = {
 							name: "ARMOR_3",
 							health: settings.gameAssets.ARMOR_3.health
 						}
 					break;
+					case settings.gameAssets.HELMET.id:
+						delete items.HELMET;
+						this.set.helmet = {
+							name: "HELMET",
+							health: settings.gameAssets.HELMET.health
+						}
+					break;
+					case settings.gameAssets.BOOTS.id:
+						delete items.BOOTS;
+						this.set.boots = {
+							name: "BOOTS",
+							speed: settings.gameAssets.BOOTS.speed,
+							limit: settings.gameAssets.BOOTS.limit,
+						}
+					break;
+					case settings.gameAssets.MATE_SPAWNER.id:
+						delete items.MATE_SPAWNER;
+						if(this.race === 'hero') {
+							let a = this.items,
+								b = settings.itemKeys;
+
+							if(a.length > b.length) a.splice(0, 1);
+
+							a.push({
+								name: "MATE_SPAWNER",
+								runKey: b[a.length]
+							});
+						}
+					break;
+					default:break;
 				}
 			}
 		});
 
-		this.receiveDamage(damage); //  // TODO: Hit function
+		this.receiveDamage(damage);
 
 		this.velocity += this.gravity;
 		if(testYPassed) {
@@ -294,7 +350,15 @@ class Creature {
 		}
 
 		if(testXPassed) {
-			this.pos.x += this.movement;
+			let a = this.set.boots;
+
+			if(a) {
+				a.limit -= abs(this.movement * speed);
+				if(a.limit <= 0) this.set.boots = null;
+			}
+
+			this.pos.x += this.movement * speed;
+
 			if(this.movement) this.direction = Math.sign(this.movement);
 
 			if(this.pos.x + this.width > settings.canvas.width) {
@@ -319,25 +383,34 @@ class Creature {
 	}
 
 	receiveDamage(a) {
-		let b = () => {
-			if(this.health <= 0) {
-				this.declareDeath('player');
-			}
-		}
+		let { helmet: b, armor: c } = this.set,
+			d = () => (this.health <= 0) ? this.declareDeath('hero') : null;
 
-		let с = this.set.armor;
-		if(с) {
-			if(с.health - a < 0) {
-				a -= с.health;
-				this.set.armor = null;
-				this.health -= a;
-				b();
+		if(b) {
+			let e = b.health - a;
+			if(e > 0) {
+				b.health = e;
+			} else if(e === 0) {
+				delete this.set.helmet;
 			} else {
-				с.health -= a;
+				this.health -= a -= b.health;
+				d();
+				delete this.set.helmet;
+			}
+		} else if(c) {
+			let e = c.health - a;
+			if(e > 0) {
+				c.health = e;
+			} else if(e === 0) {
+				delete this.set.armor;
+			} else {
+				this.health -= a -= c.health;
+				d();
+				delete this.set.armor;
 			}
 		} else {
 			this.health -= a;
-			b();
+			d();
 		}
 	}
 
@@ -353,7 +426,7 @@ class Creature {
 	}
 
 	controlPos(mov) {
-		this.movement = mov * this.speed;
+		this.movement = mov;
 		this.touches = { x: false, y: false };
 	}
 
@@ -369,7 +442,7 @@ class Creature {
 		this.health = 0;
 		this.set = {}
 
-		if(entity === 'player') {
+		if(entity === 'hero') {
 			settings.inGame = false;
 			document.getElementById('defaultCanvas0').style.filter = "grayscale(100%)"; // XXX
 			/*
@@ -403,10 +476,33 @@ class Bullet extends Element {
 	}
 
 	update() {
-		this.pos.x += this.direction.x * this.speed;
-		this.pos.y += this.direction.y * this.speed;
+		let a = touchableElements.filter(io => io.type !== this.type),
+			b = true;
+		a.forEach(io => {
+			let c = io.predictObstacle(
+				{
+					x: this.pos.x + this.direction.x * this.speed,
+					y: this.pos.y + this.direction.y * this.speed,
+				},
+				this.size,
+				this.size
+			);
+
+			if(c) {
+				b = false;
+
+				let d = settings.gameAssets;
+				delete items[Object.keys(d).filter(io => d[io].id === c)[0]];
+			}
+		})
+
+		if(b) {
+			this.pos.x += this.direction.x * this.speed;
+			this.pos.y += this.direction.y * this.speed;
+		}
 
 		if(
+			!b ||
 			this.pos.x > settings.canvas.width ||
 			this.pos.x + this.size < 0
 		) bullets.splice(bullets.findIndex(io => io.id === this.id), 1); // splice self
@@ -417,7 +513,7 @@ class Bullet extends Element {
 
 class Hero extends Creature {
 	constructor() {
-		super(125, 125, {
+		super('hero', 125, 125, {
 			idle: player.idle,
 			run: player.run,
 			jump: player.jump,
@@ -432,6 +528,8 @@ class Hero extends Creature {
 		this.jumps = 0;
 
 		this.damage = 20;
+
+		this.items = [];
 	}
 
 	render() {
@@ -456,24 +554,55 @@ class Hero extends Creature {
 			rect(0, 0, settings.canvas.width / 100 * (100 / (this.maxHealth / this.set.armor.health)), settings.playerHBHeight);
 		}
 
-		// Draw effects
-		{
+		// Draw the helmet bar
+		if(this.set.helmet) {
+			noStroke();
+			fill(0, 255, 0);
+			rect(0, 0, settings.canvas.width / 100 * (100 / (this.maxHealth / this.set.helmet.health)), settings.playerHBHeight);
+		}
+
+		{ // Draw effects
 			let a = 20, // icon size
 				b = 5, // margin
 				c = Object.values(this.set)
 						.filter(io => io)
-						.map(io => io.name),
-				d = [
-					...this.effects,
-					...c
-				];
+						.map(io => io.name);
 
-			d.forEach((io, ia) => {
+			c.forEach((io, ia) => {
 				let c = settings.gameAssets[io].model;
 				if(!c) return;
 
 				fill(255);
 				image(c, ia * (a + b) + b, settings.playerHBHeight + b, a, a);
+			});
+
+		}
+
+		{ // Draw items
+			let a = 20, // icon size
+				b = 10; // padding
+
+			textFont(mainFont);
+			textSize(25);
+			textAlign(RIGHT);
+			fill(255);
+
+			this.items.forEach((io, ia) => {
+				let c = settings.gameAssets[io.name];
+				if(!c) return;
+
+				text(
+					`${ c.name } ( ${ String.fromCharCode(io.runKey).toLowerCase() } )`,
+					settings.canvas.width - a - b * 2,
+					settings.playerHBHeight * 2 + ia * (15 + b)
+				);
+
+				image(
+					c.model,
+					settings.canvas.width - a - b,
+					settings.playerHBHeight + 5 + ia * (15 + b),
+					a, a
+				)
 			});
 
 		}
@@ -499,7 +628,16 @@ class Hero extends Creature {
 			}, // dir
 			10 // speed
 		));
-		// hostnum, damage = 1, model, pos, dir, speed
+	}
+
+	useItem(a) {
+		if(!this.isAlive) return;
+
+		let b = this.items,
+			c = b[b.findIndex(({ runKey: b }) => b === a)];
+
+		if(!c) return;
+		else console.log("ITEM:", c.name);
 	}
 }
 
@@ -507,7 +645,7 @@ class Item extends Element {
 	constructor(model, isVisible, typenum) {
 		super(false, 0, 0, typenum);
 
-		this.size = 35;
+		this.size = 30;
 		this.isVisible = isVisible;
 		this.model = model
 
@@ -532,9 +670,9 @@ class Item extends Element {
 			d = map[b][c].object,
 			e = false;
 
-			// Validate if user can access this position
+			// Prevent spawn under lava
 			if(
-				!d || d.typenum === settings.gameAssets.BLOCK.id
+				!d || d.type === settings.gameAssets.LAVA.id
 			) return aa();
 
 			// Validate if no items on this position
@@ -582,16 +720,19 @@ function setup() {
 	settings.gameAssets.BACKGROUND.model       = loadImage('./assets/background.jpg');
 	settings.gameAssets.BLOCK.model            = loadImage('./assets/block.png');
 	settings.gameAssets.HEALTH_BOTTLE.model    = loadImage('./assets/items/heal.png');
-	settings.gameAssets.ARMOR_1.model         = loadImage('./assets/items/arm1.png');
-	settings.gameAssets.ARMOR_2.model         = loadImage('./assets/items/arm2.png');
-	settings.gameAssets.ARMOR_3.model         = loadImage('./assets/items/arm3.png');
+	settings.gameAssets.ARMOR_1.model          = loadImage('./assets/items/arm1.png');
+	settings.gameAssets.ARMOR_2.model          = loadImage('./assets/items/arm2.png');
+	settings.gameAssets.ARMOR_3.model          = loadImage('./assets/items/arm3.png');
 	settings.gameAssets.HERO_BULLET.model      = loadImage('./assets/bullets/fireball.png');
 	settings.gameAssets.MONSTER_1_BULLET.model = loadImage('./assets/bullets/monster1.gif');
 	settings.gameAssets.MONSTER_2_BULLET.model = loadImage('./assets/bullets/monster2.gif');
-	player.idle                          = loadImage('./assets/hero/idle.gif');
-	player.run                           = loadImage('./assets/hero/run.gif');
-	player.jump                          = loadImage('./assets/hero/jump.png');
-	player.fly                           = loadImage('./assets/hero/fly.gif');
+	settings.gameAssets.BOOTS.model            = loadImage('./assets/items/boots.png');
+	settings.gameAssets.HELMET.model           = loadImage('./assets/items/helm.png');
+	settings.gameAssets.MATE_SPAWNER.model     = loadImage('./assets/items/mateSpawner.png');
+	player.idle                                = loadImage('./assets/hero/idle.gif');
+	player.run                                 = loadImage('./assets/hero/run.gif');
+	player.jump                                = loadImage('./assets/hero/jump.png');
+	player.fly                                 = loadImage('./assets/hero/fly.gif');
 
 	[
 		'./assets/lava/1.png',
@@ -643,16 +784,37 @@ function setup() {
 	});
 
 	player.OBJECT = new Hero;
-	items.HEALTH_BOTTLE = new Item(settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id);
-	items.ARMOR_1 = new Item(settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id);
-	items.ARMOR_2 = new Item(settings.gameAssets.ARMOR_2.model, true, settings.gameAssets.ARMOR_2.id);
-	items.ARMOR_3 = new Item(settings.gameAssets.ARMOR_3.model, true, settings.gameAssets.ARMOR_3.id);
+	// items.HEALTH_BOTTLE = new Item(settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id);
+	// items.ARMOR_1 = new Item(settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id);
+	// items.ARMOR_2 = new Item(settings.gameAssets.ARMOR_2.model, true, settings.gameAssets.ARMOR_2.id);
+	// items.ARMOR_3 = new Item(settings.gameAssets.ARMOR_3.model, true, settings.gameAssets.ARMOR_3.id);
+	// items.HELMET = new Item(settings.gameAssets.HELMET.model, true, settings.gameAssets.HELMET.id);
+	// items.BOOTS = new Item(settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id);
+	// items.BOOTS = new Item(settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id);
+	// items.MATE_SPAWNER = new Item(settings.gameAssets.MATE_SPAWNER.model, true, settings.gameAssets.MATE_SPAWNER.id);
 }
 
 function draw() {
 	frameRate(30);
 
 	image(settings.gameAssets.BACKGROUND.model, 0, 0, settings.canvas.width, settings.canvas.height);
+
+	if(++itemsRefresh.delta >= itemsRefresh.wait) { // slow computers?
+		if(!itemsRefresh.started) {
+			itemsRefresh.started = true;
+		} else { // spawn random item
+			let a = settings.gameAssets,
+				b = Object.keys(a).filter(io => a[io].type === "ITEM"),
+				e = b[floor(random(b.length))],
+				{ model, id } = a[e];
+
+			items[e] = new Item(model, true, id)
+
+		}
+
+		itemsRefresh.wait = round(random(2000, 48000));
+		itemsRefresh.delta = 1;
+	}
 
 	if(!settings.inGame) {
 		textFont(mainFont);
@@ -713,6 +875,8 @@ function keyPressed() {
 		player.OBJECT.jump();
 	} else if(keyCode === 13) {
 		player.OBJECT.shoot();
+	} else {
+		player.OBJECT.useItem(keyCode)
 	}
 }
 
