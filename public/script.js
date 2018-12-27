@@ -16,12 +16,14 @@ let player = {
 	jump: null,
 	fly: null,
 	OBJECT: null
-}
+},
+	monsters = []; // TODO
 
 const settings = {
 	canvas: {
 		height: 445, // 445
-		width: 850 // 800 - 850
+		width: 850, // 800 - 850
+		FPS: 30,
 	},
 	inGame: true,
 	playerHBHeight: 17.5, // 17.5
@@ -97,6 +99,11 @@ const settings = {
 			id: 41,
 			type: "BULLET",
 			model: null
+		},
+		LIZARD: {
+			id: 90,
+			type: "ENTITY",
+			model: null
 		}
 	},
 	itemKeys: [
@@ -119,14 +126,14 @@ let touchableElements = [],
 // 1 - block
 // 2 - lava
 const map = [
-	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
-	[1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+	[0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
 
 class Element {
@@ -214,10 +221,11 @@ class Creature {
 			throw new Error("We couldn't load creature's dimensions. Please, provide these values.")
 		}
 
-		this.gravity = 1;
+		this.gravity = 30 / settings.canvas.FPS;
 		this.velocity = 0;
 
-		this.speed = 5;
+		this.speed = 5 / (settings.canvas.FPS / 30); // 5
+		this.jumpHeight = 9; // 9 - 10
 		this.movement = 0;
 		this.direction = 1;
 
@@ -433,11 +441,11 @@ class Creature {
 	jump() {
 		if(!this.jumps) return;
 
-		this.velocity = -10;
+		this.velocity = -this.jumpHeight;
 		if(this.strictJump) this.jumps--;
 	}
 
-	declareDeath(entity = 'mob') {
+	declareDeath(entity = 'monster') {
 		this.isAlive = false;
 		this.health = 0;
 		this.set = {}
@@ -641,6 +649,26 @@ class Hero extends Creature {
 	}
 }
 
+class Monster extends Creature {
+	constructor(health, model, regen = 1) {
+		super(
+			'monster',
+			health,
+			health,
+			model,
+			model.width,
+			model.height,
+			regen
+		);
+	}
+}
+
+class Lizard extends Monster {
+	constructor() {
+		super(120, settings.gameAssets.LIZARD.model, 0);
+	}
+}
+
 class Item extends Element {
 	constructor(model, isVisible, typenum) {
 		super(false, 0, 0, typenum);
@@ -716,6 +744,7 @@ function preload() {
 
 function setup() {
 	createCanvas(settings.canvas.width, settings.canvas.height);
+	frameRate(settings.canvas.FPS);
 
 	settings.gameAssets.BACKGROUND.model       = loadImage('./assets/background.jpg');
 	settings.gameAssets.BLOCK.model            = loadImage('./assets/block.png');
@@ -729,6 +758,7 @@ function setup() {
 	settings.gameAssets.BOOTS.model            = loadImage('./assets/items/boots.png');
 	settings.gameAssets.HELMET.model           = loadImage('./assets/items/helm.png');
 	settings.gameAssets.MATE_SPAWNER.model     = loadImage('./assets/items/mateSpawner.png');
+	settings.gameAssets.LIZARD.model           = loadImage('./assets/monsters/lizard.gif');
 	player.idle                                = loadImage('./assets/hero/idle.gif');
 	player.run                                 = loadImage('./assets/hero/run.gif');
 	player.jump                                = loadImage('./assets/hero/jump.png');
@@ -795,8 +825,6 @@ function setup() {
 }
 
 function draw() {
-	frameRate(30);
-
 	image(settings.gameAssets.BACKGROUND.model, 0, 0, settings.canvas.width, settings.canvas.height);
 
 	if(++itemsRefresh.delta >= itemsRefresh.wait) { // slow computers?
