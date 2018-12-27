@@ -194,25 +194,22 @@ class Hero extends Creature {
 				this.height
 			);
 
-			if(yTest) {
-				if(testYPassed) {
+			if([xTest, yTest].includes(1)) { // if material is block
+				if(yTest && testYPassed) {
 					testYPassed = false;
 					this.velocity = this.gravity;
 					this.jumps = this.maxJumps;
 				}
-			}
 
-			if(xTest) {
-				if(testXPassed) {
+				if(xTest && testXPassed) {
 					testXPassed = false;
 				}
-			}
-
-			if([xTest, yTest].includes(2)) { // if material is lava
-				this.declareDeath('player');
-
-
-				
+			} else if([xTest, yTest].includes(2)) { // if material is lava
+				this.declareDeath('player');				
+			} else if([xTest, yTest].includes(20)) { // if material is health bottle
+				this.health += 120;
+				if(this.health > this.maxHealth) this.health = this.maxHealth;
+				items.HEALTH_BOTTLE.isVisible = false;
 			}
 		});
 
@@ -256,7 +253,7 @@ class Hero extends Creature {
 
 class Item extends Element {
 	constructor(model, isVisible, typenum) {
-		super(false, 0, 0, typenum)
+		super(false, 0, 0, typenum);
 
 		this.size = 35;
 		this.isVisible = isVisible;
@@ -276,11 +273,22 @@ class Item extends Element {
 	}
 
 	genPos() {
-		function aa() {
+		let aa = () => {
 			let a = a => floor(random(a)),
 			b = a(map.length), // y in the array
 			c = a(map[0].length), // x in the array
-			d = map[b][c];
+			d = map[b][c],
+			e = false;
+
+			// Validate, if no items on this position
+			Object.values(items).map(io => {
+				if(
+					io.type !== this.type &&
+					io.pos.x === d.pos.x &&
+					io.pos.y === d.pos.y
+				) e = true;
+			})
+			if(e) return aa();
 
 			return (typeof d !== "object") ? aa() : d.object;
 		}
@@ -365,7 +373,7 @@ function setup() {
 	});
 
 	player.OBJECT = new Hero;
-	items.push(new HealthBottle(true));
+	items.HEALTH_BOTTLE = new HealthBottle(true);
 }
 
 function draw() {
@@ -410,9 +418,11 @@ function draw() {
 		});
 	});
 
-	items.forEach(io => {
-		touchableElements.push(io);
-		io.render();
+	Object.values(items).forEach(io => {
+		if(io.isVisible) {
+			touchableElements.push(io);
+			io.render();
+		}
 	});
 
 	player.OBJECT.render().update();
