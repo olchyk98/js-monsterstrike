@@ -8,31 +8,41 @@ let image_background = image_block = null,
 		idle: null,
 		run: null,
 		jump: null,
+		fly: null,
 		OBJECT: null
-	}
+	},
+	mainFont = null,
+	image_healthBottle = [];
 
 const settings = {
 	sizes: {
 		height: 445, // 445
-		width: 800 // 700
-	}
+		width: 850 // 800 - 850
+	},
+	inGame: true
 }
 
-let touchableElements = [];
+let touchableElements = [],
+	items = [];
 
+// 0 - void
+// 1 - block
+// 2 - lava
+
+// 20 - health bottle
 const map = [
+	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
 
 class Element {
-	constructor(isBlock = true, leftIndex, bottomIndex, texture) {
+	constructor(isBlock = true, leftIndex, bottomIndex, typenum) {
 		if(isBlock) {
 			this.size = settings.sizes.width / map[0].length;  // 30
 
@@ -41,6 +51,8 @@ class Element {
 				y: settings.sizes.height - bottomIndex * this.size
 			}
 		}
+
+		this.type = typenum;
 	}
 
 	testTouch(pos, width, height) {
@@ -48,7 +60,7 @@ class Element {
 			{ x: ex, y: ey } = this.pos,
 			b = 15; // padding
 
-		return(
+		if(
 			(
 				(py + height > ey && py < ey + this.size) &&
 				(px >= ex - b && px + width < ex + this.size + b)
@@ -57,13 +69,15 @@ class Element {
 				(px + width > ex && px + width < ex + this.size) ||
 				(px < ex + this.size && px > ex)
 			)
-		);
+		) {
+			return this.type;
+		}
 	}
 }
 
 class Block extends Element {
-	constructor(leftIndex, bottomIndex) {
-		super(true, leftIndex, bottomIndex);
+	constructor(leftIndex, bottomIndex, number) {
+		super(true, leftIndex, bottomIndex, number);
 	}
 
 	render() {
@@ -75,25 +89,23 @@ class Block extends Element {
 }
 
 class Lava extends Element {
-	constructor(leftIndex, bottomIndex) {
-		super(true, leftIndex, bottomIndex);
+	constructor(leftIndex, bottomIndex, number) {
+		super(true, leftIndex, bottomIndex, number);
 
+		this.currentFrame = 0;
 		this.currentSprite = 0;
 	}
 
 	render() {
-		// console.log(this.currentSprite);
 		image(image_lava[this.currentSprite], this.pos.x, this.pos.y, this.size, this.size);
 
 		return this;
 	}
 
 	update() {
-		this.currentSprite = 230;
-
-		// if(this.currentSprite + 1 > image_lava.length - 1) {
-		// 	this.currentSprite = 0;
-		// }
+		if(++this.currentFrame % 5 === 0 && ++this.currentSprite > image_lava.length - 1) {
+			this.currentSprite = 0;
+		}
 
 		return this;
 	}
@@ -104,6 +116,15 @@ class Creature {
 		this.isAlive = true;
 		this.maxHealth = maxHealth;
 		this.health = currentHealth || maxHealth;
+	}
+
+	declareDeath(entity) {
+		if(entity === 'player') {
+			this.isAlive = false;
+			this.health = 0;
+			settings.inGame = false;
+			document.getElementById('defaultCanvas0').style.filter = "grayscale(100%)"; // XXX
+		}
 	}
 }
 
@@ -135,35 +156,46 @@ class Hero extends Creature {
 		// Draw hero
 		image(this.model, this.pos.x, this.pos.y);
 
-		// Draw health bar
+		// Draw the health bar
 		noStroke();
 		fill(255, 0, 0);
 
-		// this.health
-
 		rect(0, 0, settings.sizes.width / 100 * (100 / (this.maxHealth / this.health)), 17.5);
-		textSize(12);
+		textFont(mainFont);
+		textSize(24);
 		textAlign(CENTER);
 		fill(255);
-		text('Health', settings.sizes.width / 2, 13);
+		text(`Health (${ round(100 / (this.maxHealth / this.health)) })`, settings.sizes.width / 2, 13);
 
 		return this;
 	}
 
 	update() {
+		if(!this.isAlive) return;
+
 		let testYPassed = true;
 		let testXPassed = true;
 
 		// Test y
 		touchableElements.forEach(io => {
-			if(io.testTouch( // y
+			let yTest = io.testTouch( // y
 				{
 					x: this.pos.x,
 					y: this.pos.y + (this.velocity + this.gravity)
 				},
 				this.width,
 				this.height
-			)) {
+			),
+				xTest = io.testTouch( // x
+				{
+					x: this.pos.x + this.movement,
+					y: this.pos.y
+				},
+				this.width,
+				this.height
+			);
+
+			if(yTest) {
 				if(testYPassed) {
 					testYPassed = false;
 					this.velocity = this.gravity;
@@ -171,15 +203,17 @@ class Hero extends Creature {
 				}
 			}
 
-			if(io.testTouch( // x
-				{
-					x: this.pos.x + this.movement,
-					y: this.pos.y
-				},
-				this.width,
-				this.height
-			)) {
-				if(testXPassed) testXPassed = false;
+			if(xTest) {
+				if(testXPassed) {
+					testXPassed = false;
+				}
+			}
+
+			if([xTest, yTest].includes(2)) { // if material is lava
+				this.declareDeath('player');
+
+
+				
 			}
 		});
 
@@ -198,6 +232,13 @@ class Hero extends Creature {
 			}
 		}
 
+		if(Math.sign(this.velocity) !== -1) { // velocity is 0 or positive
+			if(testYPassed) this.model = player.fly; // in air, but falls
+			else this.model = player.idle // on the ground
+		} else {
+			this.model = player.jump;
+		}
+
 		return this;
 	}
 
@@ -209,10 +250,58 @@ class Hero extends Creature {
 	jump() {
 		if(!this.jumps) return;
 
-		this.model = player.jump;
 		this.velocity = -10;
 		this.jumps--;
 	}
+}
+
+class Item extends Element {
+	constructor(animation = null, isVisible, typenum) {
+		super(false, 0, 0, typenum)
+
+		this.size = 25;
+		this.isVisible = isVisible;
+
+		this.animation = animation || false;
+		if(this.animation) {
+			this.currentFrame = 0;
+			this.currentSprite = 0;
+		}
+
+		this.pos = {
+			x: 150,
+			y: 150
+		}
+
+		// TOOD: Shake
+	}
+
+	render() {
+		if(this.animation) {
+			if(++this.currentFrame % 10 === 0 && ++this.currentSprite > this.animation.length - 1) {
+				this.currentSprite = 0;
+			}
+			image(this.animation[this.currentSprite], this.pos.x, this.pos.y, this.size, this.size);
+		} else {
+
+		}
+
+		return this;
+	}
+
+	genPos() {
+
+	}
+}
+
+class HealthBottle extends Item {
+	constructor(isVisible = false) {
+		super(image_healthBottle, isVisible, 20);
+	}
+}
+
+function preload() {
+	mainFont = loadFont('./assets/mainFont.ttf')
 }
 
 function setup() {
@@ -223,6 +312,7 @@ function setup() {
 	player.idle      = loadImage('./assets/hero/idle.gif');
 	player.run       = loadImage('./assets/hero/run.gif');
 	player.jump      = loadImage('./assets/hero/jump.png');
+	player.fly      = loadImage('./assets/hero/fly.gif');
 	[
 		'./assets/lava/1.png',
 		'./assets/lava/2.png',
@@ -272,7 +362,19 @@ function setup() {
 		image_lava.push(loadImage(io));
 	});
 
+	[
+		'./assets/healthBottle/1.png',
+		'./assets/healthBottle/2.png',
+		'./assets/healthBottle/3.png',
+		'./assets/healthBottle/4.png',
+		'./assets/healthBottle/5.png',
+		'./assets/healthBottle/6.png'
+	].forEach(io => {
+		image_healthBottle.push(loadImage(io));
+	})
+
 	player.OBJECT = new Hero;
+	items.push(new HealthBottle(true));
 }
 
 function draw() {
@@ -280,26 +382,46 @@ function draw() {
 
 	image(image_background, 0, 0, settings.sizes.width, settings.sizes.height);
 
+	if(!settings.inGame) {
+		textFont(mainFont);
+		textSize(64);
+		textAlign(CENTER);
+		fill(255);
+		text('YOU DIED!', settings.sizes.width / 2, settings.sizes.height / 2 + 20);
+	}
+
 	touchableElements = [];
 
 	map.forEach((io, ia, arr1) => {
 		io.forEach((ik, il, arr2) => {
 			if(ik) {
-				switch(ik) {
-					case 1: // block
-						var a = new Block(il, arr1.length - ia);
-					break;
-					case 2: // lava
-						var a = new Lava(il, arr1.length - ia);
-					break;
-					default:return; // invalid element -> break function
-				}
+				if(Number.isInteger(ik)) { // generate class
+					switch(ik) {
+						case 1: // block
+							var a = new Block(il, arr1.length - ia, ik);
+						break;
+						case 2: // lava
+							var a = new Lava(il, arr1.length - ia, ik);
+						break;
+						default:return; // invalid element -> break function
+					}
 
-				touchableElements.push(a);
-				a.render();
-				a.update && a.update();
+					arr2[il] = {
+						object: a,
+						index: ik
+					}
+				} else { // use exists class
+					touchableElements.push(ik.object);
+					ik.object.render();
+					ik.object.update && ik.object.update();
+				}
 			}
 		});
+	});
+
+	items.forEach(io => {
+		touchableElements.push(io);
+		io.render();
 	});
 
 	player.OBJECT.render().update();
