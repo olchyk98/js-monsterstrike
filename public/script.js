@@ -2,18 +2,24 @@
 
 /*
 	Monsters -> ground, air,
-	Menu, Levels,
 	Lava, Sounds,
 	Animations, End Animations, Damage light,
 	Mate, Hero Damage Stronger*,
-	Rages (stronger monsters), Raves (more monsters)
+	Rages (stronger monsters), Raves (more monsters),
 
-	HUD -> Damage, Speed, Fireballs
+	HUD -> Damage, Speed, Fireballs,
+
+	Menu, Levels,
+	Save Game / Restore Game (Local storage).
+
+	Limit hero's fireballs, and expand them using special items. -> show army in the items stack
 */
 
-// 1. Predict block using object + use only type in Creature.switch (+)
-// 2. Use Element id to delete bullet and calculate monster's hp (+)
-// 3. Fix items array. => {} -> [] ---> redraw (+)
+// x. Predict block using object + use only type in Creature.switch (+)
+// x. Use Element id to delete bullet and calculate monster's hp (+)
+// x. Fix items array. => {} -> [] ---> redraw (+)
+// 1. Fix max items splice
+// 2. Fix BAD::2H3_sjn2 - Bad Query
 
 let player = {
 	idle: null,
@@ -22,7 +28,8 @@ let player = {
 	fly: null,
 	OBJECT: null
 },
-	monsters = [];
+	monsters = [],
+	monstersID = 0;
 
 const settings = {
 	canvas: {
@@ -105,10 +112,25 @@ const settings = {
 			type: "BULLET",
 			model: null
 		},
-		Slime: {
+		SLIME: {
 			id: 90,
-			type: "ENTITY",
-			model: null
+			type: "MONSTER",
+			model: null,
+			heatlh: 75,
+			regeneration: 0,
+			damage: 1,
+			minSpeed: 1.5,
+			maxSpeed: 2
+		},
+		LIZARD: {
+			id: 91,
+			type: "MONSTER",
+			model: null,
+			heatlh: 15,
+			regeneration: 5,
+			damage: 10,
+			minSpeed: 4.5,
+			maxSpeed: 5
 		}
 	},
 	itemKeys: [
@@ -139,7 +161,7 @@ const map = [
 	[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1/**/, 1, 1, 1/**/, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
 
 class Element {
@@ -306,7 +328,7 @@ class Creature {
 
 			if([xTest, yTest].includes(1) || [xTest, yTest].includes(2)) { // if material is block or lava
 				if([xTest, yTest].includes(2)) {
-					if(!damage) damage = 10;
+					if(!damage) damage += 10;
 					if(this.race === 'hero') this.jumps = 0;
 				} else {
 					this.jumps = this.maxJumps;
@@ -321,18 +343,26 @@ class Creature {
 					testXPassed = false;
 				}
 
-				(this.signalObstacle && this.signalObstacle(xTestObject, yTestObject)); // Notify root monster that here's an obstacle
+				// Notify monster that here's an obstacle
+				{
+					let a = xTestObject,
+						b = yTestObject;
+
+					if(this.signalObstacle && !settings.inGame || !this.isAlive || (!a && !b)) {
+						this.signalObstacle(a, b);
+					}
+				}
 			} else if(xTest || yTest) { // if material is health bottle
 				if(xTest !== yTest) return;
 
 				switch(xTest) {
 					case settings.gameAssets.HEALTH_BOTTLE.id:
-						xTestObject.destroyMe();
+						xTestObject.destroy();
 						this.health += settings.gameAssets.HEALTH_BOTTLE.health;
 						if(this.health > this.maxHealth) this.health = this.maxHealth;
 					break;
 					case settings.gameAssets.ARMOR_1.id:
-						xTestObject.destroyMe();
+						xTestObject.destroy();
 						if(this.race === 'hero') {
 							this.set.armor = {
 								name: "ARMOR_1",
@@ -341,7 +371,7 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.ARMOR_2.id:
-						xTestObject.destroyMe();
+						xTestObject.destroy();
 						if(this.race === 'hero') {
 							this.set.armor = {
 								name: "ARMOR_2",
@@ -350,7 +380,7 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.ARMOR_3.id:
-						xTestObject.destroyMe();
+						xTestObject.destroy();
 						if(this.race === 'hero') {
 							this.set.armor = {
 								name: "ARMOR_3",
@@ -359,7 +389,7 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.HELMET.id:
-						xTestObject.destroyMe();
+						xTestObject.destroy();
 						if(this.race === 'hero') {
 							this.set.helmet = {
 								name: "HELMET",
@@ -368,7 +398,7 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.BOOTS.id:
-						xTestObject.destroyMe();
+						xTestObject.destroy();
 						if(this.race === 'hero') {
 							this.set.boots = {
 								name: "BOOTS",
@@ -378,23 +408,27 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.MATE_SPAWNER.id:
-						xTestObject.destroyMe();
+						xTestObject.destroy();
 						if(this.race === 'hero') {
 							let a = this.items,
-								b = settings.itemKeys;
+								b = settings.itemKeys,
+								c = false;
 
-							if(a.length > b.length) a.splice(0, 1);
+							if(a.length > b.length - 1) {
+								a.splice(0, 1);
+								c = true;
+							}
 
 							a.push({
 								name: "MATE_SPAWNER",
-								runKey: b[a.length]
+								runKey: b[(!c) ? a.length : 0] // BAD::2H3_sjn2
 							});
 						}
 					break;
 					case settings.gameAssets.HERO_BULLET.id:
 						if(this.race !== 'hero') {
-							xTestObject.destroyMe();
-							this.health -= xTestObject.damage;
+							xTestObject.destroy();
+							damage += xTestObject.damage;
 						}
 					break;
 					default:break;
@@ -504,14 +538,18 @@ class Creature {
 
 		if(entity === 'hero') {
 			settings.inGame = false;
-			document.getElementById('defaultCanvas0').style.filter = "grayscale(100%)"; // XXX
+			document.getElementById('defaultCanvas0').style = `
+				transition: .45s;
+				grayscale(100%);
+			`;
 			/*
 				The p5.js library provides filter() function,
 				but it needs a lot of memory.
 				So, 'll' use CSS filter.
 			*/
 		} else if(entity === 'monster') {
-			monsters.splice(this.id, 1);
+			let a = monsters;
+			a.splice(a.findIndex(io => io.id === this.id), 1);
 		}
 	}
 }
@@ -554,7 +592,7 @@ class Bullet extends Element {
 				b = false;
 
 				let d = settings.gameAssets;
-				c.destroyMe();
+				(c.destroy && c.destroy()); // if can be destroyed then destroy
 			}
 		})
 
@@ -567,12 +605,12 @@ class Bullet extends Element {
 			!b ||
 			this.pos.x > settings.canvas.width ||
 			this.pos.x + this.size < 0
-		) this.destroyMe(); // splice self
+		) this.destroy(); // splice self
 
 		return this;
 	}
 
-	destroyMe() {
+	destroy() {
 		bullets.splice(bullets.findIndex(io => io.id === this.id), 1);
 	}
 }
@@ -711,7 +749,7 @@ class Hero extends Creature {
 		if(!this.isAlive) return;
 
 		let b = this.items,
-			c = b[b.findIndex(({ runKey: b }) => b === a)];
+			c = b[b.findIndex(({ runKey: b }) => b === a)]; // Find the first item with that id and use it.
 
 		if(!c) return;
 		else console.log("ITEM:", c.name);
@@ -719,9 +757,9 @@ class Hero extends Creature {
 }
 
 class Monster extends Creature {
-	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, speed) {
+	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed) {
 		super(
-			monsters.length,
+			++monstersID,
 			'monster',
 			pos,
 			health,
@@ -732,7 +770,7 @@ class Monster extends Creature {
 			regen,
 			damage,
 			10,
-			speed,
+			random(minSpeed, maxSpeed),
 			11,
 			maxJumps
 		);
@@ -762,10 +800,22 @@ class Monster extends Creature {
 
 class Slime extends Monster {
 	constructor() {
-		super(50, settings.gameAssets.Slime.model, 0, {
-			x: settings.canvas.width - 30 - 100,
-			y: 0
-		}, 1, 30, 1, 2);
+		let a = settings.gameAssets.SLIME;
+
+		super(
+			a.health, // heatlh
+			a.model, // model
+			a.regeneration, // regeneration power
+			{ // position
+				x: settings.canvas.width,
+				y: 0
+			},
+			a.damage, // damage
+			30, // size
+			1, // maxJumps
+			a.minSpeed, // minSpeed
+			a.maxSpeed // maxSpeed
+		);
 	}
 
 	think() {
@@ -811,6 +861,35 @@ class Slime extends Monster {
 	}
 }
 
+class Lizard extends Monster {
+	constructor() {
+		let a = settings.gameAssets.LIZARD;
+
+		super(
+			a.health, // heatlh
+			a.model, // model
+			a.regeneration, // regeneration power
+			{ // position
+				x: settings.canvas.width,
+				y: 0
+			},
+			a.damage, // damage
+			30, // size
+			1, // maxJumps
+			a.minSpeed, // minSpeed
+			a.maxSpeed // maxSpeed
+		);
+	}
+
+	think() {
+		this.movement = -1;
+	}
+
+	signalObstacle(a, b) {
+
+	}
+}
+
 class Item extends Element {
 	constructor(id, model, isVisible, typenum) {
 		super(false, 0, 0, typenum, 0);
@@ -834,7 +913,7 @@ class Item extends Element {
 		return this;
 	}
 
-	destroyMe() {
+	destroy() {
 		let a = items;
 		a.splice(a.findIndex(io => io.id === this.id), 1);
 	}
@@ -848,18 +927,18 @@ class Item extends Element {
 			e = false;
 
 			// Prevent spawn under lava
-			if(
-				!d || d.type === settings.gameAssets.LAVA.id
-			) return aa();
+			if(!d || d.type === settings.gameAssets.LAVA.id) return aa();
 
 			// Validate if no items on this position
 			e = false;
 			items.map(io => {
+				if(e) return;
+
 				if(
 					io.pos &&
 					io.type !== this.type &&
 					io.pos.x === d.pos.x &&
-					io.pos.y === d.pos.y
+					io.pos.y === d.pos.y - d.size
 				) e = true;
 			});
 			if(e) return aa();
@@ -867,6 +946,8 @@ class Item extends Element {
 			// Validate if no blocks on this position
 			e = false;
 			map.forEach(io => io.forEach(({ object }) => {
+				if(e) return;
+
 				if( // XXX
 					object &&
 					object.pos.x === d.pos.x &&
@@ -907,7 +988,8 @@ function setup() {
 	settings.gameAssets.BOOTS.model            = loadImage('./assets/items/boots.png');
 	settings.gameAssets.HELMET.model           = loadImage('./assets/items/helm.png');
 	settings.gameAssets.MATE_SPAWNER.model     = loadImage('./assets/items/mateSpawner.png');
-	settings.gameAssets.Slime.model           = loadImage('./assets/monsters/Slime.gif');
+	settings.gameAssets.SLIME.model            = loadImage('./assets/monsters/Slime.gif');
+	settings.gameAssets.LIZARD.model           = loadImage('./assets/monsters/lizard.gif');
 	player.idle                                = loadImage('./assets/hero/idle.gif');
 	player.run                                 = loadImage('./assets/hero/run.gif');
 	player.jump                                = loadImage('./assets/hero/jump.png');
@@ -963,9 +1045,11 @@ function setup() {
 	});
 
 	player.OBJECT = new Hero;
-	monsters.push(new Slime);
+	// monsters.push(new Slime);
+	// monsters.push(new Slime);
+	// monsters.push(new Lizard);
 
-	items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_2.model, true, settings.gameAssets.ARMOR_2.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_3.model, true, settings.gameAssets.ARMOR_3.id));
@@ -985,13 +1069,13 @@ function draw() {
 			let a = settings.gameAssets,
 				b = Object.keys(a).filter(io => a[io].type === "ITEM"),
 				e = b[floor(random(b.length))],
-				{ model, id } = a[e];
+				{ model, id } = a["MATE_SPAWNER"]; // DEBUG (e)
 
-			items[e] = new Item(++itemsID, model, true, id)
+			items.push(new Item(++itemsID, model, true, id));
 
 		}
 
-		itemsRefresh.wait = round(random(2000, 10000));
+		itemsRefresh.wait = round(random(10, 50)); // 2000 - 10000 // DEBUG
 		itemsRefresh.delta = 1;
 	}
 
