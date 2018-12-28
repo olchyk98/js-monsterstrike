@@ -17,7 +17,7 @@ let player = {
 	fly: null,
 	OBJECT: null
 },
-	monsters = []; // TODO
+	monsters = [];
 
 const settings = {
 	canvas: {
@@ -202,14 +202,17 @@ class Lava extends Element {
 }
 
 class Creature {
-	constructor(race, maxHealth = 100, currentHealth, models, width, height, regenPower) {
+	constructor(id = 0, race, pos, maxHealth = 100, currentHealth, models, width, height, regenPower, damage, speed, jh) {
 		this.isAlive = true;
 		this.race = race;
+		this.id = id;
 
 		this.models = models;
-		this.model = this.models.idle;
+		this.model = this.models.idle || this.models;
 
-		this.pos = {
+		this.damage = damage;
+
+		this.pos = pos || {
 			x: 0,
 			y: 0
 		}
@@ -224,8 +227,8 @@ class Creature {
 		this.gravity = 30 / settings.canvas.FPS;
 		this.velocity = 0;
 
-		this.speed = 5 / (settings.canvas.FPS / 30); // 5
-		this.jumpHeight = 9; // 9 - 10
+		this.speed = speed;
+		this.jumpHeight = jh;
 		this.movement = 0;
 		this.direction = 1;
 
@@ -292,43 +295,55 @@ class Creature {
 				switch(xTest) {
 					case settings.gameAssets.HEALTH_BOTTLE.id: // health bottle
 						delete items.HEALTH_BOTTLE;
-						this.health += settings.gameAssets.HEALTH_BOTTLE.health;
-						if(this.health > this.maxHealth) this.health = this.maxHealth;
+						if(this.race === 'hero') {
+							this.health += settings.gameAssets.HEALTH_BOTTLE.health;
+							if(this.health > this.maxHealth) this.health = this.maxHealth;
+						}
 					break;
 					case settings.gameAssets.ARMOR_1.id:
 						delete items.ARMOR_1;
-						this.set.armor = {
-							name: "ARMOR_1",
-							health: settings.gameAssets.ARMOR_1.health
+						if(this.race === 'hero') {
+							this.set.armor = {
+								name: "ARMOR_1",
+								health: settings.gameAssets.ARMOR_1.health
+							}
 						}
 					break;
 					case settings.gameAssets.ARMOR_2.id:
 						delete items.ARMOR_2;
-						this.set.armor = {
-							name: "ARMOR_2",
-							health: settings.gameAssets.ARMOR_2.health
+						if(this.race === 'hero') {
+							this.set.armor = {
+								name: "ARMOR_2",
+								health: settings.gameAssets.ARMOR_2.health
+							}
 						}
 					break;
 					case settings.gameAssets.ARMOR_3.id:
 						delete items.ARMOR_3;
-						this.set.armor = {
-							name: "ARMOR_3",
-							health: settings.gameAssets.ARMOR_3.health
+						if(this.race === 'hero') {
+							this.set.armor = {
+								name: "ARMOR_3",
+								health: settings.gameAssets.ARMOR_3.health
+							}
 						}
 					break;
 					case settings.gameAssets.HELMET.id:
 						delete items.HELMET;
-						this.set.helmet = {
-							name: "HELMET",
-							health: settings.gameAssets.HELMET.health
+						if(this.race === 'hero') {
+							this.set.helmet = {
+								name: "HELMET",
+								health: settings.gameAssets.HELMET.health
+							}
 						}
 					break;
 					case settings.gameAssets.BOOTS.id:
 						delete items.BOOTS;
-						this.set.boots = {
-							name: "BOOTS",
-							speed: settings.gameAssets.BOOTS.speed,
-							limit: settings.gameAssets.BOOTS.limit,
+						if(this.race === 'hero') {
+							this.set.boots = {
+								name: "BOOTS",
+								speed: settings.gameAssets.BOOTS.speed,
+								limit: settings.gameAssets.BOOTS.limit,
+							}
 						}
 					break;
 					case settings.gameAssets.MATE_SPAWNER.id:
@@ -369,7 +384,7 @@ class Creature {
 
 			if(this.movement) this.direction = Math.sign(this.movement);
 
-			if(this.pos.x + this.width > settings.canvas.width) {
+			if(this.pos.x + this.width > settings.canvas.width && this.race !== 'monster') {
 				this.pos.x = settings.canvas.width - this.width;
 			} else if(this.pos.x < 0) {
 				this.pos.x = 0;
@@ -392,7 +407,7 @@ class Creature {
 
 	receiveDamage(a) {
 		let { helmet: b, armor: c } = this.set,
-			d = () => (this.health <= 0) ? this.declareDeath('hero') : null;
+			d = () => (this.health <= 0) ? this.declareDeath(this.race) : null;
 
 		if(b) {
 			let e = b.health - a;
@@ -458,6 +473,8 @@ class Creature {
 				but it needs a lot of memory.
 				So, 'll' use CSS filter.
 			*/
+		} else if(entity === 'monster') {
+			monsters.splice(this.id, 1);
 		}
 	}
 }
@@ -521,12 +538,12 @@ class Bullet extends Element {
 
 class Hero extends Creature {
 	constructor() {
-		super('hero', 125, 125, {
+		super(0, 'hero', null, 125, 125, {
 			idle: player.idle,
 			run: player.run,
 			jump: player.jump,
 			fly: player.fly,
-		}, 21, 35, 5);
+		}, 21, 35, 5, 20, 5 / (settings.canvas.FPS / 30), 9);
 
 		// this.width = 21; // this.model.width -> 1?
 		// this.height = 35; // this.model.height -> 1?
@@ -534,8 +551,6 @@ class Hero extends Creature {
 		this.strictJump = true;
 		this.maxJumps = 3;
 		this.jumps = 0;
-
-		this.damage = 20;
 
 		this.items = [];
 	}
@@ -650,22 +665,49 @@ class Hero extends Creature {
 }
 
 class Monster extends Creature {
-	constructor(health, model, regen = 1) {
+	constructor(health, model, regen = 1, pos, damage = 10, size) {
 		super(
+			monsters.length,
 			'monster',
+			pos,
 			health,
 			health,
 			model,
-			model.width,
-			model.height,
-			regen
+			size,
+			size,
+			regen,
+			damage,
+			3,
+			2
 		);
+
+		this.size = size;
+	}
+
+	render() {
+		fill(255, 0, 0);
+		rect(
+			this.pos.x - this.size / 3.5,
+			this.pos.y - this.size / 2,
+			this.size * 1.5 / 100 * (100 / (this.maxHealth / this.health)),
+			10
+		);
+		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
+
+		return this;
 	}
 }
 
 class Lizard extends Monster {
 	constructor() {
-		super(120, settings.gameAssets.LIZARD.model, 0);
+		super(120, settings.gameAssets.LIZARD.model, 0, {
+			x: settings.canvas.width - 30 - 100,
+			y: 0
+		}, 20, 30);
+	}
+
+	think() {
+		this.movement = -1;
 	}
 }
 
@@ -814,6 +856,8 @@ function setup() {
 	});
 
 	player.OBJECT = new Hero;
+	monsters.push(new Lizard());
+
 	// items.HEALTH_BOTTLE = new Item(settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id);
 	// items.ARMOR_1 = new Item(settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id);
 	// items.ARMOR_2 = new Item(settings.gameAssets.ARMOR_2.model, true, settings.gameAssets.ARMOR_2.id);
@@ -891,6 +935,10 @@ function draw() {
 	bullets.forEach(io => {
 		touchableElements.push(io);
 		io.render().update();
+	});
+
+	monsters.forEach(io => {
+		io.render().update().think();
 	});
 
 	player.OBJECT.render().update().regenerate();
