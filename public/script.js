@@ -2,13 +2,18 @@
 
 /*
 	Monsters -> ground, air,
-	Weapons, Menu, Levels, Lightnings,
+	Menu, Levels,
 	Lava, Sounds,
-	Animations, End Animations,
-	Mate, Monsters Portal
+	Animations, End Animations, Damage light,
+	Mate, Hero Damage Stronger*,
+	Rages (stronger monsters), Raves (more monsters)
 
 	HUD -> Damage, Speed, Fireballs
 */
+
+// 1. Predict block using object + use only type in Creature.switch (+)
+// 2. Use Element id to delete bullet and calculate monster's hp (+)
+// 3. Fix items array. => {} -> [] ---> redraw (+)
 
 let player = {
 	idle: null,
@@ -100,7 +105,7 @@ const settings = {
 			type: "BULLET",
 			model: null
 		},
-		LIZARD: {
+		Slime: {
 			id: 90,
 			type: "ENTITY",
 			model: null
@@ -113,9 +118,10 @@ const settings = {
 }
 
 let touchableElements = [],
-	items = {},
 	bullets = [],
 	bulletsID = 0,
+	items = [],
+	itemsID = 0,
 	itemsRefresh = {
 		started: false,
 		wait: 0,
@@ -126,28 +132,34 @@ let touchableElements = [],
 // 1 - block
 // 2 - lava
 const map = [
-	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
 
 class Element {
-	constructor(isBlock = false, leftIndex = -1, bottomIndex = -1, typenum) {
+	constructor(isBlock = false, leftIndex = -1, bottomIndex = -1, typenum, id = 0) {
+
+		this.isBlock = isBlock;
 		if(isBlock) {
-			this.size = settings.canvas.width / map[0].length;  // 30
+			this.size = settings.canvas.width / map[0].length; // 30
+
+			this.leftIndex = leftIndex;
+			this.bottomIndex = bottomIndex;
 
 			this.pos = {
 				x: leftIndex * this.size,
-				y: settings.canvas.height - bottomIndex * this.size
+				y: settings.canvas.height - (map.length - bottomIndex) * this.size
 			}
 		}
 
 		this.type = typenum;
+		this.id = id;
 	}
 
 	predictObstacle(pos, width, height) {
@@ -158,14 +170,14 @@ class Element {
 			(px + width >= ex) && (px <= ex + this.size) && // x (left, right)
 			(py + height >= ey) && (py <= ey + this.size) // y (top, bottom)
 		) {
-			return this.type;
+			return this;
 		}
 	}
 }
 
 class Block extends Element {
 	constructor(leftIndex, bottomIndex, number) {
-		super(true, leftIndex, bottomIndex, number);
+		super(true, leftIndex, bottomIndex, number, 0);
 	}
 
 	render() {
@@ -178,7 +190,7 @@ class Block extends Element {
 
 class Lava extends Element {
 	constructor(leftIndex, bottomIndex, number) {
-		super(true, leftIndex, bottomIndex, number);
+		super(true, leftIndex, bottomIndex, number, 0);
 
 		this.currentFrame = 0;
 		this.currentSprite = 0;
@@ -202,7 +214,7 @@ class Lava extends Element {
 }
 
 class Creature {
-	constructor(id = 0, race, pos, maxHealth = 100, currentHealth, models, width, height, regenPower, damage, speed, jh) {
+	constructor(id = 0, race, pos, maxHealth = 100, currentHealth, models, width, height, regenPower, damage, asl, speed, jh, maxJumps = 3) {
 		this.isAlive = true;
 		this.race = race;
 		this.id = id;
@@ -211,11 +223,17 @@ class Creature {
 		this.model = this.models.idle || this.models;
 
 		this.damage = damage;
+		this.asl = asl; // Attack Speed Limit
+		this.aslDelta = 0;
 
 		this.pos = pos || {
 			x: 0,
 			y: 0
 		}
+
+		this.strictJump = true;
+		this.maxJumps = maxJumps;
+		this.jumps = 0;
 
 		this.width = width;
 		this.height = height;
@@ -249,6 +267,10 @@ class Creature {
 	update() {
 		if(!this.isAlive) return this;
 
+		if(--this.aslDelta < 0) {
+			this.aslDelta = 0;
+		}
+
 		let testYPassed = true,
 			testXPassed = true,
 			damage = 0,
@@ -273,10 +295,19 @@ class Creature {
 				this.height
 			);
 
+			if(xTest) {
+				var xTestObject = xTest;
+				xTest = xTest.type;
+			}
+			if(yTest) {
+				var yTestObject = yTest;
+				yTest = yTest.type;
+			}
+
 			if([xTest, yTest].includes(1) || [xTest, yTest].includes(2)) { // if material is block or lava
 				if([xTest, yTest].includes(2)) {
 					if(!damage) damage = 10;
-					this.jumps = 0;
+					if(this.race === 'hero') this.jumps = 0;
 				} else {
 					this.jumps = this.maxJumps;
 				}
@@ -289,19 +320,19 @@ class Creature {
 				if(xTest && testXPassed) {
 					testXPassed = false;
 				}
-			} else { // if material is health bottle
+
+				(this.signalObstacle && this.signalObstacle(xTestObject, yTestObject)); // Notify root monster that here's an obstacle
+			} else if(xTest || yTest) { // if material is health bottle
 				if(xTest !== yTest) return;
 
 				switch(xTest) {
-					case settings.gameAssets.HEALTH_BOTTLE.id: // health bottle
-						delete items.HEALTH_BOTTLE;
-						if(this.race === 'hero') {
-							this.health += settings.gameAssets.HEALTH_BOTTLE.health;
-							if(this.health > this.maxHealth) this.health = this.maxHealth;
-						}
+					case settings.gameAssets.HEALTH_BOTTLE.id:
+						xTestObject.destroyMe();
+						this.health += settings.gameAssets.HEALTH_BOTTLE.health;
+						if(this.health > this.maxHealth) this.health = this.maxHealth;
 					break;
 					case settings.gameAssets.ARMOR_1.id:
-						delete items.ARMOR_1;
+						xTestObject.destroyMe();
 						if(this.race === 'hero') {
 							this.set.armor = {
 								name: "ARMOR_1",
@@ -310,7 +341,7 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.ARMOR_2.id:
-						delete items.ARMOR_2;
+						xTestObject.destroyMe();
 						if(this.race === 'hero') {
 							this.set.armor = {
 								name: "ARMOR_2",
@@ -319,7 +350,7 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.ARMOR_3.id:
-						delete items.ARMOR_3;
+						xTestObject.destroyMe();
 						if(this.race === 'hero') {
 							this.set.armor = {
 								name: "ARMOR_3",
@@ -328,7 +359,7 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.HELMET.id:
-						delete items.HELMET;
+						xTestObject.destroyMe();
 						if(this.race === 'hero') {
 							this.set.helmet = {
 								name: "HELMET",
@@ -337,7 +368,7 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.BOOTS.id:
-						delete items.BOOTS;
+						xTestObject.destroyMe();
 						if(this.race === 'hero') {
 							this.set.boots = {
 								name: "BOOTS",
@@ -347,7 +378,7 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.MATE_SPAWNER.id:
-						delete items.MATE_SPAWNER;
+						xTestObject.destroyMe();
 						if(this.race === 'hero') {
 							let a = this.items,
 								b = settings.itemKeys;
@@ -360,12 +391,18 @@ class Creature {
 							});
 						}
 					break;
+					case settings.gameAssets.HERO_BULLET.id:
+						if(this.race !== 'hero') {
+							xTestObject.destroyMe();
+							this.health -= xTestObject.damage;
+						}
+					break;
 					default:break;
 				}
 			}
 		});
 
-		this.receiveDamage(damage);
+		this.declareDamage(damage);
 
 		this.velocity += this.gravity;
 		if(testYPassed) {
@@ -405,7 +442,7 @@ class Creature {
 		return this;
 	}
 
-	receiveDamage(a) {
+	declareDamage(a) {
 		let { helmet: b, armor: c } = this.set,
 			d = () => (this.health <= 0) ? this.declareDeath(this.race) : null;
 
@@ -481,7 +518,7 @@ class Creature {
 
 class Bullet extends Element {
 	constructor(id, hostnum, damage = 1, model, pos, dir, speed) {
-		super(false, -1, -1, hostnum);
+		super(false, -1, -1, hostnum, id);
 
 		this.size = 25;
 
@@ -517,7 +554,7 @@ class Bullet extends Element {
 				b = false;
 
 				let d = settings.gameAssets;
-				delete items[Object.keys(d).filter(io => d[io].id === c)[0]];
+				c.destroyMe();
 			}
 		})
 
@@ -530,27 +567,42 @@ class Bullet extends Element {
 			!b ||
 			this.pos.x > settings.canvas.width ||
 			this.pos.x + this.size < 0
-		) bullets.splice(bullets.findIndex(io => io.id === this.id), 1); // splice self
+		) this.destroyMe(); // splice self
 
 		return this;
+	}
+
+	destroyMe() {
+		bullets.splice(bullets.findIndex(io => io.id === this.id), 1);
 	}
 }
 
 class Hero extends Creature {
 	constructor() {
-		super(0, 'hero', null, 125, 125, {
-			idle: player.idle,
-			run: player.run,
-			jump: player.jump,
-			fly: player.fly,
-		}, 21, 35, 5, 20, 5 / (settings.canvas.FPS / 30), 9);
+		super(
+			0, // id
+			'hero', // race
+			null, // pos (default 0 - 0)
+			125, // maxHealth
+			125, // health
+			{ // models / model
+				idle: player.idle,
+				run: player.run,
+				jump: player.jump,
+				fly: player.fly,
+			},
+			21, // width*
+			35, // height*
+			5, // regenPower
+			20, // damage
+			7.5, // asl (Attack Speed Limit)
+			5 / (settings.canvas.FPS / 30), // speed
+			9, // jh (Jump Height)
+			3 // maxJumps
+		);
 
 		// this.width = 21; // this.model.width -> 1?
 		// this.height = 35; // this.model.height -> 1?
-
-		this.strictJump = true;
-		this.maxJumps = 3;
-		this.jumps = 0;
 
 		this.items = [];
 	}
@@ -634,7 +686,9 @@ class Hero extends Creature {
 	}
 
 	shoot() {
-		if(!this.isAlive) return;
+		if(!this.isAlive || this.aslDelta > 0) return;
+
+		this.aslDelta = this.asl;
 
 		bullets.push(new Bullet(
 			++bulletsID, // id
@@ -643,7 +697,7 @@ class Hero extends Creature {
 			settings.gameAssets.HERO_BULLET.model, // model
 			{ // pos
 				x: this.pos.x + ((this.direction === 1) ? 15 : -15),
-				y: this.pos.y // /2?
+				y: this.pos.y + this.height / 6
 			},
 			{
 				x: this.direction,
@@ -665,7 +719,7 @@ class Hero extends Creature {
 }
 
 class Monster extends Creature {
-	constructor(health, model, regen = 1, pos, damage = 10, size) {
+	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, speed) {
 		super(
 			monsters.length,
 			'monster',
@@ -677,8 +731,10 @@ class Monster extends Creature {
 			size,
 			regen,
 			damage,
-			3,
-			2
+			10,
+			speed,
+			11,
+			maxJumps
 		);
 
 		this.size = size;
@@ -694,30 +750,76 @@ class Monster extends Creature {
 		);
 		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
 
+		rect(player.OBJECT.pos.x + this.size / 2 > this.pos.x - 10, this.pos.y, player.OBJECT.pos.x + this.size / 2 < this.pos.x + this.size + 20, player.OBJECT.pos.y > this.pos.y + this.size + 10)
+
 		return this;
+	}
+
+	receiveBullet() {
+
 	}
 }
 
-class Lizard extends Monster {
+class Slime extends Monster {
 	constructor() {
-		super(120, settings.gameAssets.LIZARD.model, 0, {
+		super(50, settings.gameAssets.Slime.model, 0, {
 			x: settings.canvas.width - 30 - 100,
 			y: 0
-		}, 20, 30);
+		}, 1, 30, 1, 2);
 	}
 
 	think() {
-		this.movement = -1;
+		if(!settings.inGame) return;
+
+		// Move to the player
+		let a = player.OBJECT,
+			b = this.pos,
+			c = 20, // rangeX
+			f = 5, // rangeY
+			d = a.pos.x + this.size / 2,
+			e = (
+				(d > b.x - c && d < b.x + this.size + c) && // x
+				(!(a.pos.y < b.y - f) && !(a.pos.y > b.y + this.size + f))
+			);
+
+		if(a.pos.x !== this.pos.x && !e) {
+			this.movement = {
+				true: 1,
+				false: -1,
+			}[a.pos.x > this.pos.x];
+		} else {
+			this.movement = 0;
+		}
+
+		if(e && this.aslDelta <= 0) this.attack();
+	}
+
+	attack() {
+		this.jump();
+		this.aslDelta = this.asl;
+		player.OBJECT.declareDamage(this.damage);
+	}
+
+	signalObstacle(a, b) {
+		if(!settings.inGame || !this.isAlive || (!a && !b)) return;
+
+		// Simple movement (It's the easiest monster)
+		let d = settings.gameAssets;
+		if((a && a.type === d.BLOCK.id) || (b && b.type === d.LAVA.id)) {
+			this.jump();
+		}
 	}
 }
 
 class Item extends Element {
-	constructor(model, isVisible, typenum) {
-		super(false, 0, 0, typenum);
+	constructor(id, model, isVisible, typenum) {
+		super(false, 0, 0, typenum, 0);
 
 		this.size = 30;
 		this.isVisible = isVisible;
-		this.model = model
+		this.model = model;
+
+		this.id = id;
 
 		this.pos = null;
 
@@ -730,6 +832,11 @@ class Item extends Element {
 		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
 
 		return this;
+	}
+
+	destroyMe() {
+		let a = items;
+		a.splice(a.findIndex(io => io.id === this.id), 1);
 	}
 
 	genPos() {
@@ -747,7 +854,7 @@ class Item extends Element {
 
 			// Validate if no items on this position
 			e = false;
-			Object.values(items).map(io => {
+			items.map(io => {
 				if(
 					io.pos &&
 					io.type !== this.type &&
@@ -800,7 +907,7 @@ function setup() {
 	settings.gameAssets.BOOTS.model            = loadImage('./assets/items/boots.png');
 	settings.gameAssets.HELMET.model           = loadImage('./assets/items/helm.png');
 	settings.gameAssets.MATE_SPAWNER.model     = loadImage('./assets/items/mateSpawner.png');
-	settings.gameAssets.LIZARD.model           = loadImage('./assets/monsters/lizard.gif');
+	settings.gameAssets.Slime.model           = loadImage('./assets/monsters/Slime.gif');
 	player.idle                                = loadImage('./assets/hero/idle.gif');
 	player.run                                 = loadImage('./assets/hero/run.gif');
 	player.jump                                = loadImage('./assets/hero/jump.png');
@@ -856,16 +963,16 @@ function setup() {
 	});
 
 	player.OBJECT = new Hero;
-	monsters.push(new Lizard());
+	monsters.push(new Slime);
 
-	// items.HEALTH_BOTTLE = new Item(settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id);
-	// items.ARMOR_1 = new Item(settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id);
-	// items.ARMOR_2 = new Item(settings.gameAssets.ARMOR_2.model, true, settings.gameAssets.ARMOR_2.id);
-	// items.ARMOR_3 = new Item(settings.gameAssets.ARMOR_3.model, true, settings.gameAssets.ARMOR_3.id);
-	// items.HELMET = new Item(settings.gameAssets.HELMET.model, true, settings.gameAssets.HELMET.id);
-	// items.BOOTS = new Item(settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id);
-	// items.BOOTS = new Item(settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id);
-	// items.MATE_SPAWNER = new Item(settings.gameAssets.MATE_SPAWNER.model, true, settings.gameAssets.MATE_SPAWNER.id);
+	items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_2.model, true, settings.gameAssets.ARMOR_2.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_3.model, true, settings.gameAssets.ARMOR_3.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.HELMET.model, true, settings.gameAssets.HELMET.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.MATE_SPAWNER.model, true, settings.gameAssets.MATE_SPAWNER.id));
 }
 
 function draw() {
@@ -880,11 +987,11 @@ function draw() {
 				e = b[floor(random(b.length))],
 				{ model, id } = a[e];
 
-			items[e] = new Item(model, true, id)
+			items[e] = new Item(++itemsID, model, true, id)
 
 		}
 
-		itemsRefresh.wait = round(random(2000, 48000));
+		itemsRefresh.wait = round(random(2000, 10000));
 		itemsRefresh.delta = 1;
 	}
 
@@ -894,6 +1001,7 @@ function draw() {
 		textAlign(CENTER);
 		fill(255);
 		text('YOU DIED!', settings.canvas.width / 2, settings.canvas.height / 2 + 20);
+		// noLoop();
 	}
 
 	touchableElements = [];
@@ -904,10 +1012,10 @@ function draw() {
 				if(Number.isInteger(ik)) { // generate class
 					switch(ik) {
 						case settings.gameAssets.BLOCK.id: // block
-							var a = new Block(il, arr1.length - ia, ik);
+							var a = new Block(il, ia, ik);
 						break;
 						case settings.gameAssets.LAVA.id: // lava
-							var a = new Lava(il, arr1.length - ia, ik);
+							var a = new Lava(il, ia, ik);
 						break;
 						default:return; // invalid element -> break function
 					}
@@ -925,7 +1033,7 @@ function draw() {
 		});
 	});
 
-	Object.values(items).forEach(io => {
+	items.forEach(io => {
 		if(io.isVisible) {
 			touchableElements.push(io);
 			io.render();
