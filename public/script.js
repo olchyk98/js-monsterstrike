@@ -4,8 +4,12 @@
 	Monsters -> ground, air,
 	Lava, Sounds,
 	Animations, End Animations, Damage light,
-	Mate, Hero Damage Stronger*,
-	Rages (stronger monsters), Raves (more monsters),
+	Mate,
+	Rages ( stronger monsters:
+		hp: x2,
+		damage: x2,
+		hero regeneration: x.5
+	), Raves (more monsters),
 	Boss
 
 	HUD -> Damage, Speed, Fireballs,
@@ -14,6 +18,13 @@
 	Save Game / Restore Game (Local storage).
 
 	Limit hero's fireballs, and expand them using special items. -> show army in the items stack
+
+
+	///
+	spawnWall
+	meteor
+	shield
+	lizard
 */
 
 // x. Predict block using object + use only type in Creature.switch (+)
@@ -42,8 +53,13 @@ const settings = {
 			type: "BLOCK",
 			model: null
 		},
-		LAVA: {
+		SPAWNER: {
 			id: 2,
+			type: "BLOCK",
+			model: null
+		},
+		LAVA: {
+			id: 3,
 			type: "BLOCK",
 			model: []
 		},
@@ -719,7 +735,7 @@ class Hero extends Creature {
 		textSize(24);
 		textAlign(CENTER);
 		fill(255);
-		text(`Health (${ round(100 / (this.maxHealth / this.health)) })`, settings.canvas.width / 2, 13);
+		text(`Health (${ round(100 / (this.maxHealth / this.health)) }%)`, settings.canvas.width / 2, 13);
 
 		// Draw the armor bar
 		if(this.set.armor) {
@@ -844,15 +860,23 @@ class Monster extends Creature {
 
 	render() {
 		fill(255, 0, 0);
+
+		let hpHeight = 10;
+
 		rect(
 			this.pos.x - this.size / 3.5,
 			this.pos.y - this.size / 2,
 			this.size * 1.5 / 100 * (100 / (this.maxHealth / this.health)),
-			10
+			hpHeight
 		);
 		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
 
 		// TODO: Draw hp
+		textFont(mainFont);
+		textSize(25);
+		textAlign(CENTER);
+		fill(255);
+		text(`${ this.health }hp`, this.pos.x + this.size / 2, this.pos.y - hpHeight - 10);
 		rect(player.OBJECT.pos.x + this.size / 2 > this.pos.x - 10, this.pos.y, player.OBJECT.pos.x + this.size / 2 < this.pos.x + this.size + 20, player.OBJECT.pos.y > this.pos.y + this.size + 10)
 
 		return this;
@@ -1147,14 +1171,14 @@ function setup() {
 	settings.gameAssets.ARMOR_1.model          = loadImage('./assets/items/arm1.png');
 	settings.gameAssets.ARMOR_2.model          = loadImage('./assets/items/arm2.png');
 	settings.gameAssets.ARMOR_3.model          = loadImage('./assets/items/arm3.png');
-	settings.gameAssets.HERO_BULLET.model      = loadImage('./assets/bullets/fireball.png');
-	settings.gameAssets.LIZARD_BULLET.model = loadImage('./assets/bullets/monster1.gif');
-	settings.gameAssets.MONSTER_2_BULLET.model = loadImage('./assets/bullets/monster2.gif');
 	settings.gameAssets.BOOTS.model            = loadImage('./assets/items/boots.png');
 	settings.gameAssets.HELMET.model           = loadImage('./assets/items/helm.png');
 	settings.gameAssets.MATE_SPAWNER.model     = loadImage('./assets/items/mateSpawner.png');
 	settings.gameAssets.SLIME.model            = loadImage('./assets/monsters/Slime.gif');
 	settings.gameAssets.LIZARD.model           = loadImage('./assets/monsters/lizard.gif');
+	settings.gameAssets.HERO_BULLET.model      = loadImage('./assets/bullets/fireball.png');
+	settings.gameAssets.LIZARD_BULLET.model    = loadImage('./assets/bullets/monster1.gif');
+	settings.gameAssets.MONSTER_2_BULLET.model = loadImage('./assets/bullets/monster2.gif');
 	player.models.idle                         = loadImage('./assets/hero/idle.gif');
 	player.models.run                          = loadImage('./assets/hero/run.gif');
 	player.models.jump                         = loadImage('./assets/hero/jump.png');
@@ -1209,10 +1233,16 @@ function setup() {
 		settings.gameAssets.LAVA.model.push(loadImage(io));
 	});
 
+	[ // TODO
+		'./assets/meteor/'
+	]
+
+	// settings.gameAssets.SPANWER.model
+
 	player.OBJECT = new Hero;
-	monsters.push(new Slime);
 	// monsters.push(new Slime);
-	monsters.push(new Lizard);
+	// monsters.push(new Slime);
+	// monsters.push(new Lizard);
 
 	// items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
