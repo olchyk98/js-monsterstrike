@@ -18,24 +18,16 @@
 // x. Predict block using object + use only type in Creature.switch (+)
 // x. Use Element id to delete bullet and calculate monster's hp (+)
 // x. Fix items array. => {} -> [] ---> redraw (+)
-// 1. Fix max items splice
-// 2. Fix BAD::2H3_sjn2 - Bad Query
-
-let player = {
-	idle: null,
-	run: null,
-	jump: null,
-	fly: null,
-	OBJECT: null
-},
-	monsters = [],
-	monstersID = 0;
+// x. Fix BAD::2H3_sjn2 - Bad Queue (+)
+// 1. Hero health by object
+// END. noLoop() on die + TODO
 
 const settings = {
 	canvas: {
 		height: 445, // 445
 		width: 850, // 800 - 850
 		FPS: 30,
+		target: null
 	},
 	inGame: true,
 	playerHBHeight: 17.5, // 17.5
@@ -116,21 +108,24 @@ const settings = {
 			id: 90,
 			type: "MONSTER",
 			model: null,
-			heatlh: 75,
+			health: 75,
 			regeneration: 0,
 			damage: 1,
 			minSpeed: 1.5,
-			maxSpeed: 2
+			maxSpeed: 2,
+			maxJumps: 1
 		},
 		LIZARD: {
 			id: 91,
 			type: "MONSTER",
 			model: null,
-			heatlh: 15,
+			health: 15,
 			regeneration: 5,
 			damage: 10,
 			minSpeed: 4.5,
-			maxSpeed: 5
+			maxSpeed: 5,
+			bulletRange: 300,
+			maxJumps: 2
 		}
 	},
 	itemKeys: [
@@ -139,7 +134,25 @@ const settings = {
 	]
 }
 
-let touchableElements = [],
+let player = {
+	models: {
+		idle: null,
+		run: null,
+		jump: null,
+		fly: null,
+	},
+	OBJECT: null,
+	heatlh: 1,
+	regeneration: 5,
+	damage: 10,
+	minSpeed: 4.5,
+	maxSpeed: 5,
+	bulletRange: settings.canvas.width * .75
+},
+	monsters = [],
+	monstersID = 0,
+
+	touchableElements = [],
 	bullets = [],
 	bulletsID = 0,
 	items = [],
@@ -160,7 +173,7 @@ const map = [
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1/**/, 1, 1, 1/**/, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
 
@@ -236,7 +249,7 @@ class Lava extends Element {
 }
 
 class Creature {
-	constructor(id = 0, race, pos, maxHealth = 100, currentHealth, models, width, height, regenPower, damage, asl, speed, jh, maxJumps = 3) {
+	constructor(id = 0, race, pos, maxHealth, currentHealth, models, width, height, regenPower, damage, asl, speed, jh, maxJumps = 3) {
 		this.isAlive = true;
 		this.race = race;
 		this.id = id;
@@ -343,14 +356,12 @@ class Creature {
 					testXPassed = false;
 				}
 
-				// Notify monster that here's an obstacle
-				{
+				// Notify monster about blocks around him.
+				if(this.race === 'monster' && this.signalObstacle && settings.inGame && this.isAlive) {
 					let a = xTestObject,
 						b = yTestObject;
-
-					if(this.signalObstacle && !settings.inGame || !this.isAlive || (!a && !b)) {
-						this.signalObstacle(a, b);
-					}
+					
+					(a || b) && this.signalObstacle(a, b);
 				}
 			} else if(xTest || yTest) { // if material is health bottle
 				if(xTest !== yTest) return;
@@ -419,9 +430,19 @@ class Creature {
 								c = true;
 							}
 
+							// 1(x) - a
+							// 2(1) - b
+							// 3(2) - c
+							// 4(3) - d --- (length 4)
+							// 5(4) ---- (++length-> 5)
+
+							a.forEach((io, ia, arr) => { // restore keys order
+								arr[ia].runKey = b[ia];
+							});
+
 							a.push({
 								name: "MATE_SPAWNER",
-								runKey: b[(!c) ? a.length : 0] // BAD::2H3_sjn2
+								runKey: b[a.length]
 							});
 						}
 					break;
@@ -524,11 +545,13 @@ class Creature {
 		this.touches = { x: false, y: false };
 	}
 
-	jump() {
-		if(!this.jumps) return;
-
-		this.velocity = -this.jumpHeight;
-		if(this.strictJump) this.jumps--;
+	jump(iterations = 1) {
+		for(let ma = 0; ma < iterations; ma++) {
+			if(!this.jumps) return;
+		
+			this.velocity = -this.jumpHeight;
+			if(this.strictJump) this.jumps--;
+		}
 	}
 
 	declareDeath(entity = 'monster') {
@@ -538,10 +561,7 @@ class Creature {
 
 		if(entity === 'hero') {
 			settings.inGame = false;
-			document.getElementById('defaultCanvas0').style = `
-				transition: .45s;
-				grayscale(100%);
-			`;
+			settings.canvas.target.style.filter = "grayscale(100%)";
 			/*
 				The p5.js library provides filter() function,
 				but it needs a lot of memory.
@@ -555,13 +575,16 @@ class Creature {
 }
 
 class Bullet extends Element {
-	constructor(id, hostnum, damage = 1, model, pos, dir, speed) {
+	constructor(id, hostnum, damage = 1, model, pos, dir, speed, rangeX) {
 		super(false, -1, -1, hostnum, id);
 
 		this.size = 25;
 
 		this.damage = damage;
 		this.model = model;
+
+		this.rangeX = rangeX;
+		this.ranged = 0; // ranged??
 
 		this.pos = pos || { x: 0, y: 0 };
 		this.direction = dir || { x: 1, y: 0 };
@@ -597,7 +620,14 @@ class Bullet extends Element {
 		})
 
 		if(b) {
-			this.pos.x += this.direction.x * this.speed;
+			let c = this.direction.x * this.speed;
+
+			this.pos.x += c;
+			this.ranged += c;
+			if(this.ranged > this.rangeX) { // destroy
+				this.destroy();
+			}
+
 			this.pos.y += this.direction.y * this.speed;
 		}
 
@@ -624,10 +654,10 @@ class Hero extends Creature {
 			125, // maxHealth
 			125, // health
 			{ // models / model
-				idle: player.idle,
-				run: player.run,
-				jump: player.jump,
-				fly: player.fly,
+				idle: player.models.idle,
+				run: player.models.run,
+				jump: player.models.jump,
+				fly: player.models.fly,
 			},
 			21, // width*
 			35, // height*
@@ -741,7 +771,8 @@ class Hero extends Creature {
 				x: this.direction,
 				y: 0
 			}, // dir
-			10 // speed
+			10, // speed
+			player.bulletRange // rangeX
 		));
 	}
 
@@ -812,7 +843,7 @@ class Slime extends Monster {
 			},
 			a.damage, // damage
 			30, // size
-			1, // maxJumps
+			a.maxJumps, // maxJumps
 			a.minSpeed, // minSpeed
 			a.maxSpeed // maxSpeed
 		);
@@ -837,8 +868,6 @@ class Slime extends Monster {
 				true: 1,
 				false: -1,
 			}[a.pos.x > this.pos.x];
-		} else {
-			this.movement = 0;
 		}
 
 		if(e && this.aslDelta <= 0) this.attack();
@@ -851,11 +880,10 @@ class Slime extends Monster {
 	}
 
 	signalObstacle(a, b) {
-		if(!settings.inGame || !this.isAlive || (!a && !b)) return;
+		let c = settings.gameAssets;
 
 		// Simple movement (It's the easiest monster)
-		let d = settings.gameAssets;
-		if((a && a.type === d.BLOCK.id) || (b && b.type === d.LAVA.id)) {
+		if((a && a.type === c.BLOCK.id) || (b && b.type === c.LAVA.id)) {
 			this.jump();
 		}
 	}
@@ -875,18 +903,56 @@ class Lizard extends Monster {
 			},
 			a.damage, // damage
 			30, // size
-			1, // maxJumps
+			a.mapJumps, // maxJumps
 			a.minSpeed, // minSpeed
 			a.maxSpeed // maxSpeed
 		);
+
+		this.bulletRange = a.bulletRange;
 	}
 
 	think() {
-		this.movement = -1;
+		if(!settings.inGame) return;
+
+		let a = player.OBJECT,
+			b = this;
+
+			// !monster cannot go nearest than bulletRange / 2.
+		if(a.pos.x !== this.pos.x) { // combine two ifs
+			this.movement = {
+				true: 1,
+				false: -1,
+			}[a.pos.x > b.pos.x];
+		}
+		if(abs(a.pos.x - b.pos.x) < this.bulletRange) {
+			console.log("CAN ATTACK");
+		}
 	}
 
 	signalObstacle(a, b) {
+		if(a) {
+			let c = a.bottomIndex,
+				d = a.leftIndex,
+				e = map[c]; // next block
 
+			if(![undefined, 0].includes(e[d])) {
+				this.jump();
+			}
+			if(![undefined, 0].includes()) {
+				this.jump(2);
+			}
+		}
+		if(b) {
+			let c = b.bottomIndex,
+				d = b.leftIndex,
+				e = map[c],
+				f = e[d],
+				g = e[d + this.movement];
+
+			if([f && f.material, g && g.material].includes(settings.gameAssets.LAVA.id)) {
+				this.jump();
+			}
+		}
 	}
 }
 
@@ -973,7 +1039,7 @@ function preload() {
 }
 
 function setup() {
-	createCanvas(settings.canvas.width, settings.canvas.height);
+	settings.canvas.target = createCanvas(settings.canvas.width, settings.canvas.height).elt;
 	frameRate(settings.canvas.FPS);
 
 	settings.gameAssets.BACKGROUND.model       = loadImage('./assets/background.jpg');
@@ -990,10 +1056,10 @@ function setup() {
 	settings.gameAssets.MATE_SPAWNER.model     = loadImage('./assets/items/mateSpawner.png');
 	settings.gameAssets.SLIME.model            = loadImage('./assets/monsters/Slime.gif');
 	settings.gameAssets.LIZARD.model           = loadImage('./assets/monsters/lizard.gif');
-	player.idle                                = loadImage('./assets/hero/idle.gif');
-	player.run                                 = loadImage('./assets/hero/run.gif');
-	player.jump                                = loadImage('./assets/hero/jump.png');
-	player.fly                                 = loadImage('./assets/hero/fly.gif');
+	player.models.idle                         = loadImage('./assets/hero/idle.gif');
+	player.models.run                          = loadImage('./assets/hero/run.gif');
+	player.models.jump                         = loadImage('./assets/hero/jump.png');
+	player.models.fly                          = loadImage('./assets/hero/fly.gif');
 
 	[
 		'./assets/lava/1.png',
@@ -1047,7 +1113,7 @@ function setup() {
 	player.OBJECT = new Hero;
 	// monsters.push(new Slime);
 	// monsters.push(new Slime);
-	// monsters.push(new Lizard);
+	monsters.push(new Lizard);
 
 	// items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
@@ -1062,20 +1128,20 @@ function setup() {
 function draw() {
 	image(settings.gameAssets.BACKGROUND.model, 0, 0, settings.canvas.width, settings.canvas.height);
 
-	if(++itemsRefresh.delta >= itemsRefresh.wait) { // slow computers?
+	if(++itemsRefresh.delta >= itemsRefresh.wait && settings.inGame) {
 		if(!itemsRefresh.started) {
 			itemsRefresh.started = true;
 		} else { // spawn random item
 			let a = settings.gameAssets,
 				b = Object.keys(a).filter(io => a[io].type === "ITEM"),
 				e = b[floor(random(b.length))],
-				{ model, id } = a["MATE_SPAWNER"]; // DEBUG (e)
+				{ model, id } = a[e];
 
 			items.push(new Item(++itemsID, model, true, id));
 
 		}
 
-		itemsRefresh.wait = round(random(10, 50)); // 2000 - 10000 // DEBUG
+		itemsRefresh.wait = round(random(2000, 10000)); // 2000 - 10000
 		itemsRefresh.delta = 1;
 	}
 
