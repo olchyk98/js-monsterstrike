@@ -2,7 +2,7 @@
 
 /*
 	Monsters -> ground, air,
-	Lava, Sounds,
+	Lava,
 	Animations, End Animations, Damage light,
 	Mate,
 	Rages ( stronger monsters:
@@ -10,9 +10,11 @@
 		damage: x2,
 		hero regeneration: x.5
 	), Raves (more monsters),
-	Boss
+	Boss, Spikes (Complete assets->items->1)
 
 	HUD -> Damage, Speed, Fireballs,
+
+	Sounds, BgMusic - Undertale - Megalovania
 
 	Menu, Levels,
 	Save Game / Restore Game (Local storage).
@@ -21,7 +23,6 @@
 
 
 	///
-	spawnWall
 	meteor
 	shield
 	lizard
@@ -53,13 +54,8 @@ const settings = {
 			type: "BLOCK",
 			model: null
 		},
-		SPAWNER: {
-			id: 2,
-			type: "BLOCK",
-			model: null
-		},
 		LAVA: {
-			id: 3,
+			id: 2,
 			type: "BLOCK",
 			model: []
 		},
@@ -106,6 +102,18 @@ const settings = {
 			type: "ITEM",
 			model: null
 		},
+		METEOR_SUMMONER: {
+			name: "Meteor",
+			id: 27,
+			type: "ITEM",
+			model: null
+		},
+		METEOR: {
+			id: 28,
+			type: "ITEM",
+			model: null,
+			speed: 24
+		},
 		HERO_BULLET: {
 			id: 40,
 			type: "BULLET",
@@ -127,7 +135,8 @@ const settings = {
 			model: null,
 			health: 75,
 			regeneration: 0,
-			damage: 1,
+			damage: 10,
+			attackDelta: 30,
 			minSpeed: 1.5,
 			maxSpeed: 2,
 			maxJumps: 1
@@ -136,14 +145,14 @@ const settings = {
 			id: 91,
 			type: "MONSTER",
 			model: null,
-			health: 15,
+			health: 20,
 			regeneration: 5,
 			minSpeed: 4.5,
 			maxSpeed: 5,
 			damage: 35,
 			bulletRange: 400,
 			bulletSpeed: 20,
-			bulletDelta: 40,
+			attackDelta: 40,
 			maxJumps: 2
 		},
 		GORILLA: {
@@ -157,7 +166,7 @@ const settings = {
 			damage: 5,
 			bulletRange: 600,
 			bulletSpeed: 10,
-			bulletDelta: 20,
+			attackDelta: 20,
 			maxJumps: 1
 		}
 	},
@@ -185,16 +194,22 @@ let player = {
 	monsters = [],
 	monstersID = 0,
 
-	touchableElements = [],
 	bullets = [],
 	bulletsID = 0,
+
+	meteors = [],
+	meteorsID = 0,
+
 	items = [],
 	itemsID = 0,
 	itemsRefresh = {
 		started: false,
 		wait: 0,
 		delta: 0
-	}
+	},
+
+
+	touchableElements = [];
 
 // 0 - void
 // 1 - block
@@ -458,29 +473,13 @@ class Creature {
 					case settings.gameAssets.MATE_SPAWNER.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
-							let a = this.items,
-								b = settings.itemKeys,
-								c = false;
-
-							if(a.length > b.length - 1) {
-								a.splice(0, 1);
-								c = true;
-							}
-
-							// 1(x) - a
-							// 2(1) - b
-							// 3(2) - c
-							// 4(3) - d --- (length 4)
-							// 5(4) ---- (++length-> 5)
-
-							a.forEach((io, ia, arr) => { // restore keys order
-								arr[ia].runKey = b[ia];
-							});
-
-							a.push({
-								name: "MATE_SPAWNER",
-								runKey: b[a.length]
-							});
+							this.takeItem("MATE_SPAWNER");
+						}
+					break;
+					case settings.gameAssets.METEOR_SUMMONER.id:
+						xTestObject.destroy();
+						if(this.race === 'hero') {
+							this.takeItem("METEOR_SUMMONER");
 						}
 					break;
 					case settings.gameAssets.HERO_BULLET.id:
@@ -492,6 +491,11 @@ class Creature {
 					case settings.gameAssets.LIZARD_BULLET.id:
 						if(this.race !== 'monster') {
 							xTestObject.destroy();
+							damage += xTestObject.damage;
+						}
+					break;
+					case settings.gameAssets.METEOR.id:
+						if(this.race !== 'hero') {
 							damage += xTestObject.damage;
 						}
 					break;
@@ -617,6 +621,49 @@ class Creature {
 	}
 }
 
+class Meteor extends Element {
+	constructor(id, pos = null, dir = null, target) {
+		let a = settings.gameAssets.METEOR;
+		super(false, -1, -1, a.id, id);
+
+		this.damage = 400;
+
+		this.model = a.model;
+		this.size = 150;
+
+		this.speed = a.speed;
+		{
+			let b = target,
+				c = settings.canvas,
+				d = (b.x > c.width);
+
+			this.pos = pos || {
+				y: b.y - c.height,
+				x: (d) ? b.x - c.height : b.x + c.height
+			}
+			this.direction = {
+				x: (d) ? 1 : -1 , // pos- => +, pos+ => -
+				y: 1,
+			}
+		}
+
+	}
+
+	render() {
+		push();
+			tint(255, 100);
+			image(this.model, this.pos.x, this.pos.y, this.size, this.size);
+		pop();
+
+		return this;
+	}
+
+	update() {
+		this.pos.x += this.direction.x * this.speed;
+		this.pos.y += this.direction.y * this.speed;
+	}
+}
+
 class Bullet extends Element {
 	constructor(id, hostnum, damage = 1, model, pos, dir, speed, rangeX) {
 		super(false, -1, -1, hostnum, id);
@@ -627,7 +674,7 @@ class Bullet extends Element {
 		this.model = model;
 
 		this.rangeX = rangeX;
-		this.ranged = 0; // ranged??
+		this.ranged = 0;
 
 		this.pos = pos || { x: 0, y: 0 };
 		this.direction = dir || { x: 1, y: 0 };
@@ -823,14 +870,49 @@ class Hero extends Creature {
 		));
 	}
 
+	takeItem(item) {
+		let a = this.items,
+			b = settings.itemKeys,
+			c = false;
+
+		if(a.length > b.length - 1) {
+			a.splice(0, 1);
+			c = true;
+		}
+
+		a.forEach((io, ia, arr) => { // restore keys order
+			arr[ia].runKey = b[ia];
+		});
+
+		a.push({
+			name: item,
+			runKey: b[a.length]
+		});
+	}
+
 	useItem(a) {
 		if(!this.isAlive) return;
 
 		let b = this.items,
-			c = b[b.findIndex(({ runKey: b }) => b === a)]; // Find the first item with that id and use it.
+			c = b.findIndex(({ runKey: b }) => b === a); // Find the first item with that id and use it.
 
-		if(!c) return;
-		else console.log("ITEM:", c.name);
+		if(c < 0) return;
+
+		let d = settings.gameAssets[b[c].name].id; // get id
+		b.splice(c, 1);
+
+		switch(d) {
+			case settings.gameAssets.METEOR_SUMMONER.id: {
+				let e = Object.assign({}, this.pos);
+				e.y -= this.height * 2;
+
+				e.height = 2;
+
+				meteors.push(new Meteor(++meteorsID, null, null, e));
+			}
+			break;
+			default:break;
+		}
 	}
 }
 
@@ -881,10 +963,6 @@ class Monster extends Creature {
 
 		return this;
 	}
-
-	receiveBullet() {
-
-	}
 }
 
 class Slime extends Monster {
@@ -906,7 +984,7 @@ class Slime extends Monster {
 			a.maxSpeed, // maxSpeed
 			0,
 			0,
-			0
+			a.attackDelta
 		);
 	}
 
@@ -970,7 +1048,7 @@ class Lizard extends Monster {
 			a.maxSpeed, // maxSpeed
 			a.bulletRange, // bulletrange
 			a.bulletSpeed, // bulletSpeed
-			a.bulletDelta // Bullet time restore
+			a.attackDelta // Bullet time restore
 		);
 	}
 
@@ -1074,7 +1152,7 @@ class Gorilla extends Monster {
 			a.maxSpeed, // maxSpeed
 			a.bulletRange, // bulletrange
 			a.bulletSpeed, // bulletSpeed
-			a.bulletDelta // Bullet time restore
+			a.attackDelta // Bullet time restore
 		);
 	}
 }
@@ -1171,14 +1249,16 @@ function setup() {
 	settings.gameAssets.ARMOR_1.model          = loadImage('./assets/items/arm1.png');
 	settings.gameAssets.ARMOR_2.model          = loadImage('./assets/items/arm2.png');
 	settings.gameAssets.ARMOR_3.model          = loadImage('./assets/items/arm3.png');
-	settings.gameAssets.BOOTS.model            = loadImage('./assets/items/boots.png');
-	settings.gameAssets.HELMET.model           = loadImage('./assets/items/helm.png');
-	settings.gameAssets.MATE_SPAWNER.model     = loadImage('./assets/items/mateSpawner.png');
-	settings.gameAssets.SLIME.model            = loadImage('./assets/monsters/Slime.gif');
-	settings.gameAssets.LIZARD.model           = loadImage('./assets/monsters/lizard.gif');
 	settings.gameAssets.HERO_BULLET.model      = loadImage('./assets/bullets/fireball.png');
 	settings.gameAssets.LIZARD_BULLET.model    = loadImage('./assets/bullets/monster1.gif');
 	settings.gameAssets.MONSTER_2_BULLET.model = loadImage('./assets/bullets/monster2.gif');
+	settings.gameAssets.BOOTS.model            = loadImage('./assets/items/boots.png');
+	settings.gameAssets.HELMET.model           = loadImage('./assets/items/helm.png');
+	settings.gameAssets.MATE_SPAWNER.model     = loadImage('./assets/items/mateSpawner.png');
+	settings.gameAssets.METEOR_SUMMONER.model  = loadImage('./assets/items/sMeteor.png');
+	settings.gameAssets.METEOR.model           = loadImage('./assets/items/meteor.png');
+	settings.gameAssets.SLIME.model            = loadImage('./assets/monsters/Slime.gif');
+	settings.gameAssets.LIZARD.model           = loadImage('./assets/monsters/lizard.gif');
 	player.models.idle                         = loadImage('./assets/hero/idle.gif');
 	player.models.run                          = loadImage('./assets/hero/run.gif');
 	player.models.jump                         = loadImage('./assets/hero/jump.png');
@@ -1228,19 +1308,12 @@ function setup() {
 		'./assets/lava/42.png',
 		'./assets/lava/43.png',
 		'./assets/lava/44.png',
-		'./assets/lava/45.png',
+		'./assets/lava/45.png'
 	].forEach(io => {
 		settings.gameAssets.LAVA.model.push(loadImage(io));
 	});
 
-	[ // TODO
-		'./assets/meteor/'
-	]
-
-	// settings.gameAssets.SPANWER.model
-
 	player.OBJECT = new Hero;
-	// monsters.push(new Slime);
 	// monsters.push(new Slime);
 	// monsters.push(new Lizard);
 
@@ -1252,6 +1325,9 @@ function setup() {
 	// items.push(new Item(++itemsID, settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.MATE_SPAWNER.model, true, settings.gameAssets.MATE_SPAWNER.id));
+	items.push(new Item(++itemsID, settings.gameAssets.METEOR_SUMMONER.model, true, settings.gameAssets.METEOR_SUMMONER.id));
+
+	// meteors.push(new Meteor(++meteorsID, player.OBJECT.pos));
 }
 
 function draw() {
@@ -1322,6 +1398,12 @@ function draw() {
 	bullets.forEach(io => {
 		touchableElements.push(io);
 		io.render().update();
+	});
+
+	meteors.forEach(io => {
+		io.render().update();
+
+		touchableElements.push(io);
 	});
 
 	monsters.forEach(io => {
