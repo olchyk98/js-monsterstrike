@@ -6,6 +6,7 @@
 	Animations, End Animations, Damage light,
 	Mate, Hero Damage Stronger*,
 	Rages (stronger monsters), Raves (more monsters),
+	Boss
 
 	HUD -> Damage, Speed, Fireballs,
 
@@ -94,7 +95,7 @@ const settings = {
 			type: "BULLET",
 			model: null
 		},
-		MONSTER_1_BULLET: {
+		LIZARD_BULLET: {
 			id: 41,
 			type: "BULLET",
 			model: null
@@ -121,11 +122,27 @@ const settings = {
 			model: null,
 			health: 15,
 			regeneration: 5,
-			damage: 10,
 			minSpeed: 4.5,
 			maxSpeed: 5,
-			bulletRange: 300,
+			damage: 35,
+			bulletRange: 400,
+			bulletSpeed: 20,
+			bulletDelta: 40,
 			maxJumps: 2
+		},
+		GORILLA: {
+			id: 92,
+			type: "MONSTER",
+			model: null,
+			health: 110,
+			regeneration: 75,
+			minSpeed: 1,
+			maxSpeed: 2.5,
+			damage: 5,
+			bulletRange: 600,
+			bulletSpeed: 10,
+			bulletDelta: 20,
+			maxJumps: 1
 		}
 	},
 	itemKeys: [
@@ -173,7 +190,7 @@ const map = [
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1/**/, 1, 1, 1/**/, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
 
@@ -249,7 +266,7 @@ class Lava extends Element {
 }
 
 class Creature {
-	constructor(id = 0, race, pos, maxHealth, currentHealth, models, width, height, regenPower, damage, asl, speed, jh, maxJumps = 3) {
+	constructor(id = 0, race, pos, maxHealth, currentHealth, models, width, height, regenPower, damage, asl, speed, jh, maxJumps = 3, bulletRange = 0, bulletSpeed = 0) {
 		this.isAlive = true;
 		this.race = race;
 		this.id = id;
@@ -258,8 +275,12 @@ class Creature {
 		this.model = this.models.idle || this.models;
 
 		this.damage = damage;
+		this.bulletRange = bulletRange;
+		this.bulletSpeed = bulletSpeed;
+
 		this.asl = asl; // Attack Speed Limit
 		this.aslDelta = 0;
+
 
 		this.pos = pos || {
 			x: 0,
@@ -452,6 +473,12 @@ class Creature {
 							damage += xTestObject.damage;
 						}
 					break;
+					case settings.gameAssets.LIZARD_BULLET.id:
+						if(this.race !== 'monster') {
+							xTestObject.destroy();
+							damage += xTestObject.damage;
+						}
+					break;
 					default:break;
 				}
 			}
@@ -599,6 +626,8 @@ class Bullet extends Element {
 	}
 
 	update() {
+		if(!settings.inGame) return;
+
 		let a = touchableElements.filter(io => io.type !== this.type),
 			b = true;
 		a.forEach(io => {
@@ -611,7 +640,7 @@ class Bullet extends Element {
 				this.size
 			);
 
-			if(c) {
+			if(c && c.constructor.name !== this.constructor.name) { // c and is not a bullet
 				b = false;
 
 				let d = settings.gameAssets;
@@ -666,7 +695,9 @@ class Hero extends Creature {
 			7.5, // asl (Attack Speed Limit)
 			5 / (settings.canvas.FPS / 30), // speed
 			9, // jh (Jump Height)
-			3 // maxJumps
+			3, // maxJumps
+			player.bulletRange,
+			10
 		);
 
 		// this.width = 21; // this.model.width -> 1?
@@ -760,7 +791,7 @@ class Hero extends Creature {
 
 		bullets.push(new Bullet(
 			++bulletsID, // id
-			40, // hostnum
+			settings.gameAssets.HERO_BULLET.id, // hostnum
 			this.damage, // damage
 			settings.gameAssets.HERO_BULLET.model, // model
 			{ // pos
@@ -771,8 +802,8 @@ class Hero extends Creature {
 				x: this.direction,
 				y: 0
 			}, // dir
-			10, // speed
-			player.bulletRange // rangeX
+			this.bulletSpeed, // speed
+			this.bulletRange // rangeX
 		));
 	}
 
@@ -788,7 +819,7 @@ class Hero extends Creature {
 }
 
 class Monster extends Creature {
-	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed) {
+	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed, bulletRange, bulletSpeed, asl) {
 		super(
 			++monstersID,
 			'monster',
@@ -800,10 +831,12 @@ class Monster extends Creature {
 			size,
 			regen,
 			damage,
-			10,
+			asl,
 			random(minSpeed, maxSpeed),
-			11,
-			maxJumps
+			12,
+			maxJumps,
+			bulletRange,
+			bulletSpeed
 		);
 
 		this.size = size;
@@ -819,6 +852,7 @@ class Monster extends Creature {
 		);
 		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
 
+		// TODO: Draw hp
 		rect(player.OBJECT.pos.x + this.size / 2 > this.pos.x - 10, this.pos.y, player.OBJECT.pos.x + this.size / 2 < this.pos.x + this.size + 20, player.OBJECT.pos.y > this.pos.y + this.size + 10)
 
 		return this;
@@ -845,7 +879,10 @@ class Slime extends Monster {
 			30, // size
 			a.maxJumps, // maxJumps
 			a.minSpeed, // minSpeed
-			a.maxSpeed // maxSpeed
+			a.maxSpeed, // maxSpeed
+			0,
+			0,
+			0
 		);
 	}
 
@@ -891,7 +928,8 @@ class Slime extends Monster {
 
 class Lizard extends Monster {
 	constructor() {
-		let a = settings.gameAssets.LIZARD;
+		let a = settings.gameAssets.LIZARD,
+			b = 30; // size
 
 		super(
 			a.health, // heatlh
@@ -902,31 +940,67 @@ class Lizard extends Monster {
 				y: 0
 			},
 			a.damage, // damage
-			30, // size
+			b, // size
 			a.mapJumps, // maxJumps
 			a.minSpeed, // minSpeed
-			a.maxSpeed // maxSpeed
+			a.maxSpeed, // maxSpeed
+			a.bulletRange, // bulletrange
+			a.bulletSpeed, // bulletSpeed
+			a.bulletDelta // Bullet time restore
 		);
-
-		this.bulletRange = a.bulletRange;
 	}
 
 	think() {
 		if(!settings.inGame) return;
 
 		let a = player.OBJECT,
-			b = this;
+			b = this,
+			c = abs(a.pos.x - b.pos.x),
+			d = this.bulletRange,
+			e = abs(a.height - b.size), // difference between heights
+			f = "pos",
+			g = "height",
+			h = a[f].y - e < b[f].y && a[f].y + a[g] + e > b[f].y + b[g];
 
-			// !monster cannot go nearest than bulletRange / 2.
-		if(a.pos.x !== this.pos.x) { // combine two ifs
+		if(
+			c > d * .9 || !h
+		) { // 
 			this.movement = {
 				true: 1,
 				false: -1,
 			}[a.pos.x > b.pos.x];
+		} else if(c < d * .65) { // if too near
+			this.movement = {
+				true: 1,
+				false: -1,
+			}[a.pos.x < b.pos.x];
+		} else {
+			this.movement = 0;
 		}
-		if(abs(a.pos.x - b.pos.x) < this.bulletRange) {
-			console.log("CAN ATTACK");
+
+		if(c < d && h && this.aslDelta <= 0) {
+			this.attack(a);
 		}
+	}
+
+	attack(player) {
+		this.aslDelta = this.asl;
+		bullets.push(new Bullet(
+			++bulletsID, // id
+			settings.gameAssets.LIZARD_BULLET.id, // hostnum
+			this.damage, // damage
+			settings.gameAssets.LIZARD_BULLET.model, // model
+			{ // pos
+				x: this.pos.x,
+				y: this.pos.y + this.height / 6
+			},
+			{
+				x: (player.pos.x > this.pos.x) ? 1 : -1,
+				y: 0
+			}, // dir
+			this.bulletSpeed, // speed
+			this.bulletRange // rangeX
+		));
 	}
 
 	signalObstacle(a, b) {
@@ -938,7 +1012,7 @@ class Lizard extends Monster {
 			if(![undefined, 0].includes(e[d])) {
 				this.jump();
 			}
-			if(![undefined, 0].includes()) {
+			if(![undefined, 0].includes(e[d + this.movement])) {
 				this.jump(2);
 			}
 		}
@@ -953,6 +1027,31 @@ class Lizard extends Monster {
 				this.jump();
 			}
 		}
+	}
+}
+
+class Gorilla extends Monster {
+	constructor() {
+		let a = settings.gameAssets.GORILLA,
+			b = 45; // size
+
+		super(
+			a.health, // heatlh
+			a.model, // model
+			a.regeneration, // regeneration power
+			{ // position
+				x: settings.canvas.width,
+				y: 0
+			},
+			a.damage, // damage
+			b, // size
+			a.mapJumps, // maxJumps
+			a.minSpeed, // minSpeed
+			a.maxSpeed, // maxSpeed
+			a.bulletRange, // bulletrange
+			a.bulletSpeed, // bulletSpeed
+			a.bulletDelta // Bullet time restore
+		);
 	}
 }
 
@@ -1049,7 +1148,7 @@ function setup() {
 	settings.gameAssets.ARMOR_2.model          = loadImage('./assets/items/arm2.png');
 	settings.gameAssets.ARMOR_3.model          = loadImage('./assets/items/arm3.png');
 	settings.gameAssets.HERO_BULLET.model      = loadImage('./assets/bullets/fireball.png');
-	settings.gameAssets.MONSTER_1_BULLET.model = loadImage('./assets/bullets/monster1.gif');
+	settings.gameAssets.LIZARD_BULLET.model = loadImage('./assets/bullets/monster1.gif');
 	settings.gameAssets.MONSTER_2_BULLET.model = loadImage('./assets/bullets/monster2.gif');
 	settings.gameAssets.BOOTS.model            = loadImage('./assets/items/boots.png');
 	settings.gameAssets.HELMET.model           = loadImage('./assets/items/helm.png');
@@ -1111,7 +1210,7 @@ function setup() {
 	});
 
 	player.OBJECT = new Hero;
-	// monsters.push(new Slime);
+	monsters.push(new Slime);
 	// monsters.push(new Slime);
 	monsters.push(new Lizard);
 
@@ -1141,7 +1240,7 @@ function draw() {
 
 		}
 
-		itemsRefresh.wait = round(random(2000, 10000)); // 2000 - 10000
+		itemsRefresh.wait = round(random(500, 5000)); // 500 - 5000
 		itemsRefresh.delta = 1;
 	}
 
