@@ -23,9 +23,12 @@
 
 
 	///
-	meteor
-	shield
-	lizard
+	meteor (+)
+	shield (+)
+	gorilla
+	bomb
+	bird*
+	bunker?
 */
 
 // x. Predict block using object + use only type in Creature.switch (+)
@@ -90,42 +93,53 @@ const settings = {
 			limit: 600,
 			model: null
 		},
-		HEALTH_BOTTLE: {
+		SHIELD_ITEM: {
 			id: 25,
+			type: "ITEM",
+			model: null
+		},
+		HEALTH_BOTTLE: {
+			id: 26,
 			type: "ITEM",
 			health: 120,
 			model: null
 		},
 		MATE_SPAWNER: {
 			name: "Mate",
-			id: 26,
+			id: 27,
 			type: "ITEM",
 			model: null
 		},
 		METEOR_SUMMONER: {
 			name: "Meteor",
-			id: 27,
+			id: 28,
 			type: "ITEM",
 			model: null
 		},
 		METEOR: {
-			id: 28,
-			type: "ITEM",
+			id: 50,
+			type: "OBJECT",
 			model: null,
 			speed: 24
 		},
+		SHIELD: {
+			id: 51,
+			type: "OBJECT",
+			model: null,
+			time: 175 // frames // 1000(30fps) -> 32s, 175 ~ 6s
+		},
 		HERO_BULLET: {
-			id: 40,
+			id: 70,
 			type: "BULLET",
 			model: null
 		},
 		LIZARD_BULLET: {
-			id: 41,
+			id: 71,
 			type: "BULLET",
 			model: null
 		},
 		MONSTER_2_BULLET: {
-			id: 41,
+			id: 72,
 			type: "BULLET",
 			model: null
 		},
@@ -347,7 +361,8 @@ class Creature {
 
 		this.set = {
 			helmet: null,
-			armor: null
+			armor: null,
+			shield: null
 		}
 	}
 
@@ -356,6 +371,10 @@ class Creature {
 
 		if(--this.aslDelta < 0) {
 			this.aslDelta = 0;
+		}
+
+		if(this.race === 'hero' && this.set.shield && --this.set.shield.time <= 0) {
+			this.set.shield = null;
 		}
 
 		let testYPassed = true,
@@ -470,6 +489,15 @@ class Creature {
 							}
 						}
 					break;
+					case settings.gameAssets.SHIELD_ITEM.id:
+						xTestObject.destroy();
+						if(this.race === 'hero') {
+							this.set.shield = {
+								name: "SHIELD_ITEM",
+								time: settings.gameAssets.SHIELD.time
+							}
+						}
+					break;
 					case settings.gameAssets.MATE_SPAWNER.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
@@ -545,10 +573,12 @@ class Creature {
 	}
 
 	declareDamage(a) {
-		let { helmet: b, armor: c } = this.set,
+		let { helmet: b, armor: c, shield: aa } = this.set,
 			d = () => (this.health <= 0) ? this.declareDeath(this.race) : null;
 
-		if(b) {
+		if(aa) {
+			return;
+		} else if(b) {
 			let e = b.health - a;
 			if(e > 0) {
 				b.health = e;
@@ -635,7 +665,7 @@ class Meteor extends Element {
 		{
 			let b = target,
 				c = settings.canvas,
-				d = (b.x > c.width);
+				d = (b.x > c.width / 2);
 
 			this.pos = pos || {
 				y: b.y - c.height,
@@ -773,16 +803,30 @@ class Hero extends Creature {
 		// Draw hero
 		image(this.model, this.pos.x, this.pos.y);
 
-		// Draw the health bar
-		noStroke();
-		fill(255, 0, 0);
-		rect(0, 0, settings.canvas.width / 100 * (100 / (this.maxHealth / this.health)), settings.playerHBHeight);
+		{ // Draw the health bar
+			let a;
+			let b;
 
-		textFont(mainFont);
-		textSize(24);
-		textAlign(CENTER);
-		fill(255);
-		text(`Health (${ round(100 / (this.maxHealth / this.health)) }%)`, settings.canvas.width / 2, 13);
+			if(!this.set.shield) {
+				a = `Health (${ round(100 / (this.maxHealth / this.health)) }%)`;
+				b = "red";
+			} else {
+				a = `Shield (${ round(this.set.shield.time / settings.canvas.FPS) }s)`;
+				b = "purple";
+			}
+
+			// Rectangle
+			noStroke();
+			fill(b);
+			rect(0, 0, settings.canvas.width / 100 * (100 / (this.maxHealth / this.health)), settings.playerHBHeight);
+
+			// Text
+			textFont(mainFont);
+			textSize(24);
+			textAlign(CENTER);
+			fill(255);
+			text(a, settings.canvas.width / 2, 13);
+		}
 
 		// Draw the armor bar
 		if(this.set.armor) {
@@ -841,6 +885,12 @@ class Hero extends Creature {
 					a, a
 				)
 			});
+		}
+
+		if(this.set.shield) { // Draw protection shield
+			let a = 40; // size
+
+			image(settings.gameAssets.SHIELD.model, this.pos.x + this.width / 2 - a / 2, this.pos.y + this.height / 2 - a / 2, a, a);
 
 		}
 
@@ -1236,7 +1286,7 @@ class Item extends Element {
 }
 
 function preload() {
-	mainFont = loadFont('./assets/mainFont.ttf')
+	mainFont = loadFont('./assets/mainFont.ttf');
 }
 
 function setup() {
@@ -1255,6 +1305,8 @@ function setup() {
 	settings.gameAssets.BOOTS.model            = loadImage('./assets/items/boots.png');
 	settings.gameAssets.HELMET.model           = loadImage('./assets/items/helm.png');
 	settings.gameAssets.MATE_SPAWNER.model     = loadImage('./assets/items/mateSpawner.png');
+	settings.gameAssets.SHIELD_ITEM.model      = loadImage('./assets/items/shield.png');
+	settings.gameAssets.SHIELD.model           = loadImage('./assets/items/shieldEffect.png');
 	settings.gameAssets.METEOR_SUMMONER.model  = loadImage('./assets/items/sMeteor.png');
 	settings.gameAssets.METEOR.model           = loadImage('./assets/items/meteor.png');
 	settings.gameAssets.SLIME.model            = loadImage('./assets/monsters/Slime.gif');
@@ -1314,8 +1366,19 @@ function setup() {
 	});
 
 	player.OBJECT = new Hero;
-	// monsters.push(new Slime);
-	// monsters.push(new Lizard);
+	monsters.push(new Slime);
+	monsters.push(new Slime);
+	monsters.push(new Slime);
+	monsters.push(new Slime);
+	monsters.push(new Lizard);
+	monsters.push(new Lizard);
+	monsters.push(new Lizard);
+	monsters.push(new Lizard);
+	monsters.push(new Lizard);
+	monsters.push(new Lizard);
+	monsters.push(new Lizard);
+	monsters.push(new Lizard);
+
 
 	// items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
@@ -1323,9 +1386,9 @@ function setup() {
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_3.model, true, settings.gameAssets.ARMOR_3.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.HELMET.model, true, settings.gameAssets.HELMET.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id));
-	// items.push(new Item(++itemsID, settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.MATE_SPAWNER.model, true, settings.gameAssets.MATE_SPAWNER.id));
-	items.push(new Item(++itemsID, settings.gameAssets.METEOR_SUMMONER.model, true, settings.gameAssets.METEOR_SUMMONER.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.METEOR_SUMMONER.model, true, settings.gameAssets.METEOR_SUMMONER.id));
+	items.push(new Item(++itemsID, settings.gameAssets.SHIELD_ITEM.model, true, settings.gameAssets.SHIELD_ITEM.id));
 
 	// meteors.push(new Meteor(++meteorsID, player.OBJECT.pos));
 }

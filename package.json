@@ -1,0 +1,24 @@
+{
+  "dependencies": {
+    "express": "^4.16.4"
+  },
+  "name": "lavagame-local",
+  "description": "]",
+  "version": "0.0.1",
+  "main": "index.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/olchyk98/js-lavagame.git"
+  },
+  "author": "oles",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/olchyk98/js-lavagame/issues"
+  },
+  "homepage": "https://github.com/olchyk98/js-lavagame#readme"
+}
