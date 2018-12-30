@@ -195,6 +195,11 @@ const settings = {
 			bombRange: 400,
 			bombTime: 200,
 			bombDamage: 20
+		},
+		ELECTRICITY: {
+			id: 110,
+			type: "VISUAL",
+			model: []
 		}
 	},
 	itemKeys: [
@@ -227,8 +232,8 @@ let player = {
 	meteors = [],
 	meteorsID = 0,
 
-	poisons = [],
-	poisonsID = 0,
+	bombs = [],
+	bombsID = 0,
 
 	items = [],
 	itemsID = 0,
@@ -340,10 +345,11 @@ class Creature {
 		this.bulletSpeed = bulletSpeed;
 
 		this.asl = asl; // Attack Speed Limit
+
 		if(typeof asl !== "object") {
 			this.aslDelta = 0;
 		} else {
-			let a = asl;
+			let a = Object.assign({}, asl);
 
 			Object.keys(a).forEach(io => {
 				a[io] = 0;
@@ -1220,7 +1226,7 @@ class Lizard extends Monster {
 
 class Gorilla extends Monster {
 	/*
-	    Stupid monster that learned how to use spells, but sometimes he does it with mistakes.
+	    Stupid monster that learned how to use spells, but sometimes he does it wrong.
         Can summon his bomb in blocks.
         Has a lot of HP, and can kill the hero alone.
 	*/
@@ -1280,7 +1286,7 @@ class Gorilla extends Monster {
 	spawnBomb(a, b) { // asl for bombs?
 		this.aslDelta.bomb = this.asl.bomb;
 
-		poisons.push(new Bomb(++poisonsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombDamage));
+		bombs.push(new Bomb(++bombsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombDamage));
 	}
 
 	hit() {
@@ -1307,6 +1313,8 @@ class Bomb extends Element {
 		this.frame = 0;
 		this.time = 100 || time;
 
+		this.ex = this.exp = false;
+
 		this.range = 50;
 		this.power = 10;
 		this.damage = damage;
@@ -1323,31 +1331,49 @@ class Bomb extends Element {
 	}
 
 	render() {
-		if(this.time < 150 && this.time > 50) this.frame += 5;
-		else if(this.time < 50) this.frame += 10;
+		fill('rgba(255, 0, 0, .25)');
+		ellipse(this.pos.x + this.size / 2, this.pos.y + this.size / 2, this.frame, this.frame);
+
+		if(this.ex && this.frame <= settings.gameAssets.ELECTRICITY.model.length) {
+			let a = settings.gameAssets.ELECTRICITY.model,
+				b = a[a.length - (a.length - this.frame)];
+
+			if(b) image(b, this.ex.x - b.width / 2, this.ex.y);
+		} else {
+			image(this.model, this.pos.x, this.pos.y, this.size, this.size);
+		}
+
+		return this;
+	}
+
+	update() {
+		if(this.time < 150 && this.time > 50 && !this.ex) this.frame += 5;
+		else if(this.time < 50 && !this.ex) this.frame += 10;
 		else this.frame++;
 
 		if(this.frame > 30) this.frame = 0;
 
 		this.time--;
 
-		if(this.time < 0) return this.explode();
-
-		fill('rgba(255, 0, 0, .25)');
-		ellipse(this.pos.x + this.size / 2, this.pos.y + this.size / 2, this.frame, this.frame);
-
-		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
+		if(this.time <= 0 && !this.ex && !this.exp) {
+			this.explode();
+			this.exp = true;
+		} else if(
+			(this.ex && this.frame > settings.gameAssets.ELECTRICITY.model.length) || (
+				!this.ex && this.time <= 0
+			)
+		) {
+			bombs.splice(bombs.findIndex(io => io.id === this.id), 1);
+		}
 	}
 
 	explode() {
+		if(!settings.inGame) return;
+
 		let a = player.OBJECT,
 			b = (b, bb) => bb >= b - this.range && bb <= b + this.size + this.range;
 
-		poisons.splice(poisons.findIndex(io => io.id === this.id), 1);
-
 		if(b(a.pos.x, this.pos.x) && b(a.pos.y, this.pos.y)) {
-			console.log("PLAYER!");
-			
 			let aa = () => {
 				let a = a => floor(random(a)),
 				b = a(map.length),
@@ -1387,13 +1413,16 @@ class Bomb extends Element {
 
 			let c = aa();
 
+			this.frame = 0;
+			this.ex = Object.assign({}, a.pos);
+
 			a.pos = {
 				x: c.pos.x,
 				y: c.pos.y - a.height - 1
 			}
 
 			a.velocity -= this.power;
-			a.declareDamage -= this.damage;
+			a.declareDamage(this.damage);
 		}
 	}
 }
@@ -1500,7 +1529,7 @@ function setup() {
 	settings.gameAssets.SHIELD.model           = loadImage('./assets/items/shieldEffect.png');
 	settings.gameAssets.METEOR_SUMMONER.model  = loadImage('./assets/items/sMeteor.png');
 	settings.gameAssets.METEOR.model           = loadImage('./assets/items/meteor.png');
-	settings.gameAssets.BOMB.model           = loadImage('./assets/items/poison.png')
+	settings.gameAssets.BOMB.model             = loadImage('./assets/items/poison.png')
 	settings.gameAssets.SLIME.model            = loadImage('./assets/monsters/slime.gif');
 	settings.gameAssets.LIZARD.model           = loadImage('./assets/monsters/lizard.gif');
 	settings.gameAssets.GORILLA.model          = loadImage('./assets/monsters/gorilla.png');
@@ -1558,12 +1587,24 @@ function setup() {
 		settings.gameAssets.LAVA.model.push(loadImage(io));
 	});
 
+	[
+		'./assets/tpsmoke/1.gif',
+		'./assets/tpsmoke/2.gif',
+		'./assets/tpsmoke/3.gif',
+		'./assets/tpsmoke/4.gif',
+		'./assets/tpsmoke/5.gif',
+		'./assets/tpsmoke/6.gif',
+		'./assets/tpsmoke/7.gif'
+	].forEach(io => {
+		settings.gameAssets.ELECTRICITY.model.push(loadImage(io));
+	})
+
 	player.OBJECT = new Hero;
 	// monsters.push(new Slime);
 	// monsters.push(new Lizard);
 	monsters.push(new Gorilla);
 
-	// poisons.push(new Bomb(++poisonsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombTime));
+	// bombs.push(new Bomb(++bombsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombTime));
 
 	// items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
@@ -1643,9 +1684,9 @@ function draw() {
 		}
 	});
 
-	poisons.forEach(io => {
+	bombs.forEach(io => {
 		touchableElements.push(io);
-		io.render();
+		io.render().update();
 	});
 
 	bullets.forEach(io => {
