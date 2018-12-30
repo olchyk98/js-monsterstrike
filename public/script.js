@@ -26,9 +26,12 @@
 	meteor (+)
 	shield (+)
 	gorilla
+	fix gorilla bomb delta
 	bomb
 	bird*
 	bunker?
+	mate
+	story lines for items, monsters, hero (ex: Gorilla)
 */
 
 // x. Predict block using object + use only type in Creature.switch (+)
@@ -128,6 +131,11 @@ const settings = {
 			model: null,
 			time: 175 // frames // 1000(30fps) -> 32s, 175 ~ 6s
 		},
+		BOMB: {
+			id: 52,
+			type: "OBJECT",
+			model: null
+		},
 		HERO_BULLET: {
 			id: 70,
 			type: "BULLET",
@@ -149,11 +157,12 @@ const settings = {
 			model: null,
 			health: 75,
 			regeneration: 0,
-			damage: 10,
+			damage: 15,
 			attackDelta: 30,
 			minSpeed: 1.5,
 			maxSpeed: 2,
-			maxJumps: 1
+			maxJumps: 1,
+			jumpHeight: 12
 		},
 		LIZARD: {
 			id: 91,
@@ -163,25 +172,29 @@ const settings = {
 			regeneration: 5,
 			minSpeed: 4.5,
 			maxSpeed: 5,
-			damage: 35,
+			damage: 10,
 			bulletRange: 400,
 			bulletSpeed: 20,
 			attackDelta: 40,
-			maxJumps: 2
+			maxJumps: 2,
+			jumpHeight: 12
 		},
 		GORILLA: {
 			id: 92,
 			type: "MONSTER",
 			model: null,
-			health: 110,
+			health: 200,
 			regeneration: 75,
 			minSpeed: 1,
-			maxSpeed: 2.5,
-			damage: 5,
-			bulletRange: 600,
-			bulletSpeed: 10,
+			maxSpeed: 1.5,
+			damage: 20,
 			attackDelta: 20,
-			maxJumps: 1
+			bombDelta: 200,
+			maxJumps: 1,
+			jumpHeight: 5,
+			bombRange: 400,
+			bombTime: 200,
+			bombDamage: 20
 		}
 	},
 	itemKeys: [
@@ -213,6 +226,9 @@ let player = {
 
 	meteors = [],
 	meteorsID = 0,
+
+	poisons = [],
+	poisonsID = 0,
 
 	items = [],
 	itemsID = 0,
@@ -324,7 +340,17 @@ class Creature {
 		this.bulletSpeed = bulletSpeed;
 
 		this.asl = asl; // Attack Speed Limit
-		this.aslDelta = 0;
+		if(typeof asl !== "object") {
+			this.aslDelta = 0;
+		} else {
+			let a = asl;
+
+			Object.keys(a).forEach(io => {
+				a[io] = 0;
+			});
+
+			this.aslDelta = a;
+		}
 
 
 		this.pos = pos || {
@@ -369,8 +395,14 @@ class Creature {
 	update() {
 		if(!this.isAlive) return this;
 
-		if(--this.aslDelta < 0) {
-			this.aslDelta = 0;
+		if(typeof this.aslDelta !== "object") { // 22
+			if(--this.aslDelta < 0) {
+				this.aslDelta = 0;
+			}
+		} else { // {}
+			Object.keys(this.aslDelta).forEach(io => {
+				if(--this.aslDelta[io] < 0) this.aslDelta[io] = 0;
+			});
 		}
 
 		if(this.race === 'hero' && this.set.shield && --this.set.shield.time <= 0) {
@@ -428,11 +460,11 @@ class Creature {
 				}
 
 				// Notify monster about blocks around him.
-				if(this.race === 'monster' && this.signalObstacle && settings.inGame && this.isAlive) {
+				if(this.race === 'monster' && this.detectObstacle && settings.inGame && this.isAlive) {
 					let a = xTestObject,
 						b = yTestObject;
 					
-					(a || b) && this.signalObstacle(a, b);
+					(a || b) && this.detectObstacle(a, b);
 				}
 			} else if(xTest || yTest) { // if material is health bottle
 				if(xTest !== yTest) return;
@@ -808,7 +840,8 @@ class Hero extends Creature {
 			let b;
 
 			if(!this.set.shield) {
-				a = `Health (${ round(100 / (this.maxHealth / this.health)) }%)`;
+				// ${ round(100 / (this.maxHealth / this.health)) }
+				a = `Health (${ this.health }hp)`;
 				b = "red";
 			} else {
 				a = `Shield (${ round(this.set.shield.time / settings.canvas.FPS) }s)`;
@@ -828,18 +861,20 @@ class Hero extends Creature {
 			text(a, settings.canvas.width / 2, 13);
 		}
 
-		// Draw the armor bar
-		if(this.set.armor) {
-			noStroke();
-			fill(15, 0, 255);
-			rect(0, 0, settings.canvas.width / 100 * (100 / (this.maxHealth / this.set.armor.health)), settings.playerHBHeight);
-		}
+		if(!this.set.shield) {
+			// Draw the armor bar
+			if(this.set.armor) {
+				noStroke();
+				fill(15, 0, 255);
+				rect(0, 0, settings.canvas.width / 100 * (100 / (this.maxHealth / this.set.armor.health)), settings.playerHBHeight);
+			}
 
-		// Draw the helmet bar
-		if(this.set.helmet) {
-			noStroke();
-			fill(0, 255, 0);
-			rect(0, 0, settings.canvas.width / 100 * (100 / (this.maxHealth / this.set.helmet.health)), settings.playerHBHeight);
+			// Draw the helmet bar
+			if(this.set.helmet) {
+				noStroke();
+				fill(0, 255, 0);
+				rect(0, 0, settings.canvas.width / 100 * (100 / (this.maxHealth / this.set.helmet.health)), settings.playerHBHeight);
+			}
 		}
 
 		{ // Draw effects
@@ -887,7 +922,7 @@ class Hero extends Creature {
 			});
 		}
 
-		if(this.set.shield) { // Draw protection shield
+		if(this.set.shield) { // Draw shield
 			let a = 40; // size
 
 			image(settings.gameAssets.SHIELD.model, this.pos.x + this.width / 2 - a / 2, this.pos.y + this.height / 2 - a / 2, a, a);
@@ -967,7 +1002,7 @@ class Hero extends Creature {
 }
 
 class Monster extends Creature {
-	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed, bulletRange, bulletSpeed, asl) {
+	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed, bulletRange, bulletSpeed, asl, jh) {
 		super(
 			++monstersID,
 			'monster',
@@ -981,7 +1016,7 @@ class Monster extends Creature {
 			damage,
 			asl,
 			random(minSpeed, maxSpeed),
-			12,
+			jh,
 			maxJumps,
 			bulletRange,
 			bulletSpeed
@@ -993,23 +1028,22 @@ class Monster extends Creature {
 	render() {
 		fill(255, 0, 0);
 
-		let hpHeight = 10;
+		let hpHeight = 10,
+			hpMargin = 2.5;
 
 		rect(
 			this.pos.x - this.size / 3.5,
-			this.pos.y - this.size / 2,
+			this.pos.y - (hpHeight + hpMargin),
 			this.size * 1.5 / 100 * (100 / (this.maxHealth / this.health)),
 			hpHeight
 		);
 		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
 
-		// TODO: Draw hp
 		textFont(mainFont);
 		textSize(25);
 		textAlign(CENTER);
 		fill(255);
-		text(`${ this.health }hp`, this.pos.x + this.size / 2, this.pos.y - hpHeight - 10);
-		rect(player.OBJECT.pos.x + this.size / 2 > this.pos.x - 10, this.pos.y, player.OBJECT.pos.x + this.size / 2 < this.pos.x + this.size + 20, player.OBJECT.pos.y > this.pos.y + this.size + 10)
+		text(`${ this.health }hp`, this.pos.x + this.size / 2, this.pos.y - hpHeight - hpMargin - 5);
 
 		return this;
 	}
@@ -1034,7 +1068,8 @@ class Slime extends Monster {
 			a.maxSpeed, // maxSpeed
 			0,
 			0,
-			a.attackDelta
+			a.attackDelta,
+			a.jumpHeight
 		);
 	}
 
@@ -1068,7 +1103,7 @@ class Slime extends Monster {
 		player.OBJECT.declareDamage(this.damage);
 	}
 
-	signalObstacle(a, b) {
+	detectObstacle(a, b) {
 		let c = settings.gameAssets;
 
 		// Simple movement (It's the easiest monster)
@@ -1098,7 +1133,8 @@ class Lizard extends Monster {
 			a.maxSpeed, // maxSpeed
 			a.bulletRange, // bulletrange
 			a.bulletSpeed, // bulletSpeed
-			a.attackDelta // Bullet time restore
+			a.attackDelta, // Bullet time restore
+			a.jumpHeight
 		);
 	}
 
@@ -1155,7 +1191,7 @@ class Lizard extends Monster {
 		));
 	}
 
-	signalObstacle(a, b) {
+	detectObstacle(a, b) {
 		if(a) {
 			let c = a.bottomIndex,
 				d = a.leftIndex,
@@ -1183,6 +1219,12 @@ class Lizard extends Monster {
 }
 
 class Gorilla extends Monster {
+	/*
+	    Stupid monster that learned how to use spells, but sometimes he does it with mistakes.
+        Can summon his bomb in blocks.
+        Has a lot of HP, and can kill the hero alone.
+	*/
+
 	constructor() {
 		let a = settings.gameAssets.GORILLA,
 			b = 45; // size
@@ -1200,10 +1242,159 @@ class Gorilla extends Monster {
 			a.mapJumps, // maxJumps
 			a.minSpeed, // minSpeed
 			a.maxSpeed, // maxSpeed
-			a.bulletRange, // bulletrange
-			a.bulletSpeed, // bulletSpeed
-			a.attackDelta // Bullet time restore
+			0, // bulletrange
+			0, // bulletSpeed
+			{
+				hit: a.attackDelta,
+				bomb: a.bombDelta
+			}, // attack time restore
+			a.jumpHeight
 		);
+	}
+
+	think() {
+		if(!settings.inGame) return;
+
+		let a = player.OBJECT,
+			b = this.pos,
+			c = abs(a.pos.x - b.x),
+			d = settings.gameAssets.GORILLA.bombRange,
+			e = 40, // hand hit range
+			f = 15,
+			g = (b.y > a.pos.y - f && b.y < a.pos.y + a.height + f);
+
+		if(a.pos.x !== b.x) { // too big distance
+			this.movement = {
+				true: 1,
+				false: -1,
+			}[a.pos.x > b.x];
+		}
+
+		if(c <= e && g && this.aslDelta.hit <= 0) { // hit
+			this.hit();
+		} else if(c < d && this.aslDelta.bomb <= 0) {
+			this.spawnBomb(a);
+		}
+	}
+
+	spawnBomb(a, b) { // asl for bombs?
+		this.aslDelta.bomb = this.asl.bomb;
+
+		poisons.push(new Bomb(++poisonsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombDamage));
+	}
+
+	hit() {
+		let a = player.OBJECT;
+		this.aslDelta.hit = this.asl.hit;
+
+		this.jump();
+		a.declareDamage(this.damage);
+		a.velocity -= 15; // 15
+		this.jumps = 0;
+
+	}
+}
+
+class Bomb extends Element {
+	constructor(id, pos, time, damage) {
+		super(false, 0, 0, settings.gameAssets.BOMB.id, 0);
+
+		this.model = settings.gameAssets.BOMB.model;
+		this.size = 20;
+
+		this.id = id;
+
+		this.frame = 0;
+		this.time = 100 || time;
+
+		this.range = 50;
+		this.power = 10;
+		this.damage = damage;
+
+		{
+			let a = player.OBJECT.pos,
+				b = 30; // range
+
+			this.pos = pos || {
+				x: random(a.x - 30, a.x + 30),
+				y: random(a.y - 30, a.y + 30)
+			}
+		}
+	}
+
+	render() {
+		if(this.time < 150 && this.time > 50) this.frame += 5;
+		else if(this.time < 50) this.frame += 10;
+		else this.frame++;
+
+		if(this.frame > 30) this.frame = 0;
+
+		this.time--;
+
+		if(this.time < 0) return this.explode();
+
+		fill('rgba(255, 0, 0, .25)');
+		ellipse(this.pos.x + this.size / 2, this.pos.y + this.size / 2, this.frame, this.frame);
+
+		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
+	}
+
+	explode() {
+		let a = player.OBJECT,
+			b = (b, bb) => bb >= b - this.range && bb <= b + this.size + this.range;
+
+		poisons.splice(poisons.findIndex(io => io.id === this.id), 1);
+
+		if(b(a.pos.x, this.pos.x) && b(a.pos.y, this.pos.y)) {
+			console.log("PLAYER!");
+			
+			let aa = () => {
+				let a = a => floor(random(a)),
+				b = a(map.length),
+				c = a(map[0].length),
+				d = map[b][c].object,
+				e = false;
+
+				if(!d || d.type === settings.gameAssets.LAVA.id) return aa();
+
+				e = false;
+				items.map(io => {
+					if(e) return;
+
+					if(
+						io.pos &&
+						io.type !== this.type &&
+						io.pos.x === d.pos.x &&
+						io.pos.y === d.pos.y - d.size
+					) e = true;
+				});
+				if(e) return aa();
+
+				e = false;
+				map.forEach(io => io.forEach(({ object }) => {
+					if(e) return;
+
+					if(
+						object &&
+						object.pos.x === d.pos.x &&
+						object.pos.y === d.pos.y - d.size
+					) e = true;
+				}));
+				if(e) return aa();
+
+				return d;
+			}
+
+			let c = aa();
+
+			a.pos = {
+				x: c.pos.x,
+				y: c.pos.y - a.height - 1
+			}
+
+			a.velocity -= this.power;
+			a.declareDamage -= this.damage;
+		}
 	}
 }
 
@@ -1219,7 +1410,7 @@ class Item extends Element {
 
 		this.pos = null;
 
-		// TOOD: Shake
+		// TODO: Shake
 	}
 
 	render() {
@@ -1309,8 +1500,10 @@ function setup() {
 	settings.gameAssets.SHIELD.model           = loadImage('./assets/items/shieldEffect.png');
 	settings.gameAssets.METEOR_SUMMONER.model  = loadImage('./assets/items/sMeteor.png');
 	settings.gameAssets.METEOR.model           = loadImage('./assets/items/meteor.png');
-	settings.gameAssets.SLIME.model            = loadImage('./assets/monsters/Slime.gif');
+	settings.gameAssets.BOMB.model           = loadImage('./assets/items/poison.png')
+	settings.gameAssets.SLIME.model            = loadImage('./assets/monsters/slime.gif');
 	settings.gameAssets.LIZARD.model           = loadImage('./assets/monsters/lizard.gif');
+	settings.gameAssets.GORILLA.model          = loadImage('./assets/monsters/gorilla.png');
 	player.models.idle                         = loadImage('./assets/hero/idle.gif');
 	player.models.run                          = loadImage('./assets/hero/run.gif');
 	player.models.jump                         = loadImage('./assets/hero/jump.png');
@@ -1366,19 +1559,11 @@ function setup() {
 	});
 
 	player.OBJECT = new Hero;
-	monsters.push(new Slime);
-	monsters.push(new Slime);
-	monsters.push(new Slime);
-	monsters.push(new Slime);
-	monsters.push(new Lizard);
-	monsters.push(new Lizard);
-	monsters.push(new Lizard);
-	monsters.push(new Lizard);
-	monsters.push(new Lizard);
-	monsters.push(new Lizard);
-	monsters.push(new Lizard);
-	monsters.push(new Lizard);
+	// monsters.push(new Slime);
+	// monsters.push(new Lizard);
+	monsters.push(new Gorilla);
 
+	// poisons.push(new Bomb(++poisonsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombTime));
 
 	// items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
@@ -1388,7 +1573,7 @@ function setup() {
 	// items.push(new Item(++itemsID, settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.MATE_SPAWNER.model, true, settings.gameAssets.MATE_SPAWNER.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.METEOR_SUMMONER.model, true, settings.gameAssets.METEOR_SUMMONER.id));
-	items.push(new Item(++itemsID, settings.gameAssets.SHIELD_ITEM.model, true, settings.gameAssets.SHIELD_ITEM.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.SHIELD_ITEM.model, true, settings.gameAssets.SHIELD_ITEM.id));
 
 	// meteors.push(new Meteor(++meteorsID, player.OBJECT.pos));
 }
@@ -1458,15 +1643,19 @@ function draw() {
 		}
 	});
 
+	poisons.forEach(io => {
+		touchableElements.push(io);
+		io.render();
+	});
+
 	bullets.forEach(io => {
 		touchableElements.push(io);
 		io.render().update();
 	});
 
 	meteors.forEach(io => {
-		io.render().update();
-
 		touchableElements.push(io);
+		io.render().update();
 	});
 
 	monsters.forEach(io => {
