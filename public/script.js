@@ -23,7 +23,7 @@
 	gorilla (+)
 	fix gorilla bomb delta (+)
 	bomb (+)
-	bird*
+	bird* -> class Bird
 	bunker?
 	mate
 	story lines for items, monsters, hero (ex: Gorilla)
@@ -198,6 +198,18 @@ const settings = {
 			bombRange: 400,
 			bombTime: 200,
 			bombDamage: 20
+		},
+		BIRD: {
+			id: 93,
+			type: "MONSTER",
+			model: null,
+			health: 5,
+			regeneration: 0,
+			minSpeed: 2,
+			maxSpeed: 8,
+			bombDelta: 200,
+			bombTime: 100,
+			bombDamage: 80
 		},
 		SMOKE: {
 			id: 110,
@@ -1014,6 +1026,173 @@ class Hero extends Creature {
 	}
 }
 
+class Bomb extends Element {
+	constructor(id, pos, time, damage, target = null, gstatic = true, color = 'red') {
+		super(false, 0, 0, settings.gameAssets.BOMB.id, 0);
+
+		this.model = settings.gameAssets.BOMB.model;
+		this.size = 20;
+		this.color = color;
+
+		this.id = id;
+
+		this.frame = 0;
+		this.time = 100 || time;
+
+		this.ex = this.exp = false;
+
+		this.range = 50;
+		this.power = 10;
+		this.damage = damage;
+
+		this.gravity = +!gstatic; // Number(!gstatic) // (gstatic) ? 0 : 1
+		this.velocity = 0;
+
+		this.target = target || null; // WARNING: linked object (live position)
+
+		{
+			let a = player.OBJECT.pos,
+				b = 30; // range
+
+			this.pos = pos || {
+				x: random(a.x - 30, a.x + 30),
+				y: random(a.y - 30, a.y + 30)
+			}
+		}
+	}
+
+	render() {
+		fill({
+			red: 'rgba(255, 0, 0, .25)',
+			blue: 'rgba(0, 0, 255, .25)'
+		}[this.color]);
+		ellipse(this.pos.x + this.size / 2, this.pos.y + this.size / 2, this.frame, this.frame);
+
+		if(this.ex && this.frame <= settings.gameAssets.SMOKE.model.length) {
+			let a = settings.gameAssets.SMOKE.model,
+				b = a[a.length - (a.length - this.frame)];
+
+			if(b) image(b, this.ex.x - b.width / 2, this.ex.y);
+		} else {
+			image(this.model, this.pos.x, this.pos.y, this.size, this.size);
+		}
+
+		return this;
+	}
+
+	update() {
+		if(this.gravity) {
+			let a = this.pos.y + (this.velocity + this.gravity),
+				b = false;
+
+			touchableElements
+				.filter(io => io.constructor.name !== this.constructor.name)
+				.forEach(io => {
+				let c = io.predictObstacle(
+					{
+						x: this.pos.x,
+						y: a
+					},
+					this.size,
+					this.size
+				);
+
+				if(!b && c) b = true;
+			});
+
+			if(!b) {
+				this.velocity += this.gravity;
+				this.pos.y += this.velocity;
+			}
+		}
+
+		if(this.time < 150 && this.time > 50 && !this.ex) this.frame += 5;
+		else if(this.time < 50 && !this.ex) this.frame += 10;
+		else this.frame++;
+
+		if(this.frame > 30) this.frame = 0;
+
+		this.time--;
+
+		if(this.time <= 0 && !this.ex && !this.exp) {
+			this.explode();
+			this.exp = true;
+		} else if(
+			(this.ex && this.frame > settings.gameAssets.SMOKE.model.length) || (
+				!this.ex && this.time <= 0
+			)
+		) {
+			bombs.splice(bombs.findIndex(io => io.id === this.id), 1);
+		}
+	}
+
+	explode() {
+		if(!settings.inGame) return;
+
+		let a = player.OBJECT,
+			b = (b, bb) => bb >= b - this.range && bb <= b + this.size + this.range;
+
+		if(b(a.pos.x, this.pos.x) && b(a.pos.y, this.pos.y)) {
+			this.frame = 0;
+			this.ex = Object.assign({}, a.pos);
+
+			if(this.target) {
+				a.pos = {
+					x: this.target.x,
+					y: this.target.y
+				}
+			} else {
+				let aa = () => {
+					let a = a => floor(random(a)),
+					b = a(map.length),
+					c = a(map[0].length),
+					d = map[b][c].object,
+					e = false;
+
+					if(!d || d.type === settings.gameAssets.LAVA.id) return aa();
+
+					e = false;
+					items.map(io => {
+						if(e) return;
+
+						if(
+							io.pos &&
+							io.type !== this.type &&
+							io.pos.x === d.pos.x &&
+							io.pos.y === d.pos.y - d.size
+						) e = true;
+					});
+					if(e) return aa();
+
+					e = false;
+					map.forEach(io => io.forEach(({ object }) => {
+						if(e) return;
+
+						if(
+							object &&
+							object.pos.x === d.pos.x &&
+							object.pos.y === d.pos.y - d.size
+						) e = true;
+					}));
+					if(e) return aa();
+
+					return d;
+				}
+
+				let c = aa();
+
+				a.pos = {
+					x: c.pos.x,
+					y: c.pos.y - a.height - 1
+				}
+			}
+
+			a.velocity -= this.power;
+			a.declareDamage(this.damage);
+		}
+	}
+}
+
 class Monster extends Creature {
 	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed, bulletRange, bulletSpeed, asl, jh) {
 		super(
@@ -1297,7 +1476,9 @@ class Gorilla extends Monster {
 			null,
 			settings.gameAssets.GORILLA.bombTime,
 			settings.gameAssets.GORILLA.bombDamage,
-			this.pos
+			this.pos,
+			true,
+			'red'
 		));
 	}
 
@@ -1313,138 +1494,9 @@ class Gorilla extends Monster {
 	}
 }
 
-class Bomb extends Element {
-	constructor(id, pos, time, damage, target = null) {
-		super(false, 0, 0, settings.gameAssets.BOMB.id, 0);
+class Bird {
+	constructor() {
 
-		this.model = settings.gameAssets.BOMB.model;
-		this.size = 20;
-
-		this.id = id;
-
-		this.frame = 0;
-		this.time = 100 || time;
-
-		this.ex = this.exp = false;
-
-		this.range = 50;
-		this.power = 10;
-		this.damage = damage;
-
-		this.target = target || null; // WARNING: linked object (live position)
-
-		{
-			let a = player.OBJECT.pos,
-				b = 30; // range
-
-			this.pos = pos || {
-				x: random(a.x - 30, a.x + 30),
-				y: random(a.y - 30, a.y + 30)
-			}
-		}
-	}
-
-	render() {
-		fill('rgba(255, 0, 0, .25)');
-		ellipse(this.pos.x + this.size / 2, this.pos.y + this.size / 2, this.frame, this.frame);
-
-		if(this.ex && this.frame <= settings.gameAssets.SMOKE.model.length) {
-			let a = settings.gameAssets.SMOKE.model,
-				b = a[a.length - (a.length - this.frame)];
-
-			if(b) image(b, this.ex.x - b.width / 2, this.ex.y);
-		} else {
-			image(this.model, this.pos.x, this.pos.y, this.size, this.size);
-		}
-
-		return this;
-	}
-
-	update() {
-		if(this.time < 150 && this.time > 50 && !this.ex) this.frame += 5;
-		else if(this.time < 50 && !this.ex) this.frame += 10;
-		else this.frame++;
-
-		if(this.frame > 30) this.frame = 0;
-
-		this.time--;
-
-		if(this.time <= 0 && !this.ex && !this.exp) {
-			this.explode();
-			this.exp = true;
-		} else if(
-			(this.ex && this.frame > settings.gameAssets.SMOKE.model.length) || (
-				!this.ex && this.time <= 0
-			)
-		) {
-			bombs.splice(bombs.findIndex(io => io.id === this.id), 1);
-		}
-	}
-
-	explode() {
-		if(!settings.inGame) return;
-
-		let a = player.OBJECT,
-			b = (b, bb) => bb >= b - this.range && bb <= b + this.size + this.range;
-
-		if(b(a.pos.x, this.pos.x) && b(a.pos.y, this.pos.y)) {
-			this.frame = 0;
-			this.ex = Object.assign({}, a.pos);
-
-			if(this.target) {
-				a.pos = {
-					x: this.target.x,
-					y: this.target.y
-				}
-			} else {
-				let aa = () => {
-					let a = a => floor(random(a)),
-					b = a(map.length),
-					c = a(map[0].length),
-					d = map[b][c].object,
-					e = false;
-
-					if(!d || d.type === settings.gameAssets.LAVA.id) return aa();
-
-					e = false;
-					items.map(io => {
-						if(e) return;
-
-						if(
-							io.pos &&
-							io.type !== this.type &&
-							io.pos.x === d.pos.x &&
-							io.pos.y === d.pos.y - d.size
-						) e = true;
-					});
-					if(e) return aa();
-
-					e = false;
-					map.forEach(io => io.forEach(({ object }) => {
-						if(e) return;
-
-						if(
-							object &&
-							object.pos.x === d.pos.x &&
-							object.pos.y === d.pos.y - d.size
-						) e = true;
-					}));
-					if(e) return aa();
-
-					return d;
-				}
-
-				let c = aa();
-
-				a.pos = {
-					x: c.pos.x,
-					y: c.pos.y - a.height - 1
-				}
-			}
-
-			// a.velocity -= this.power;
-			// a.declareDamage(this.damage);
-		}
 	}
 }
 
@@ -1559,6 +1611,7 @@ function setup() {
 	settings.gameAssets.SLIME.model            = loadImage('./assets/monsters/slime.gif');
 	settings.gameAssets.LIZARD.model           = loadImage('./assets/monsters/lizard.gif');
 	settings.gameAssets.GORILLA.model          = loadImage('./assets/monsters/gorilla.png');
+	settings.gameAssets.BIRD.model             = loadImage('./assets/monsters/bird.gif');
 	player.models.idle                         = loadImage('./assets/hero/idle.gif');
 	player.models.run                          = loadImage('./assets/hero/run.gif');
 	player.models.jump                         = loadImage('./assets/hero/jump.png');
@@ -1626,11 +1679,11 @@ function setup() {
 	})
 
 	player.OBJECT = new Hero;
+
 	// monsters.push(new Slime);
 	// monsters.push(new Lizard);
-	monsters.push(new Gorilla);
-
-	// bombs.push(new Bomb(++bombsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombTime, null));
+	// monsters.push(new Gorilla);
+	monsters.push(new Bird);
 
 	// items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
@@ -1642,6 +1695,7 @@ function setup() {
 	// items.push(new Item(++itemsID, settings.gameAssets.METEOR_SUMMONER.model, true, settings.gameAssets.METEOR_SUMMONER.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.SHIELD_ITEM.model, true, settings.gameAssets.SHIELD_ITEM.id));
 
+	// bombs.push(new Bomb(++bombsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombTime, null, true, 'red'));
 	// meteors.push(new Meteor(++meteorsID, player.OBJECT.pos));
 }
 
@@ -1661,7 +1715,7 @@ function draw() {
 
 		}
 
-		itemsRefresh.wait = round(random(500, 1000)); // 500 - 5000
+		itemsRefresh.wait = round(random(300, 900)); // 500 - 5000
 		itemsRefresh.delta = 1;
 	}
 
