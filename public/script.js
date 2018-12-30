@@ -12,26 +12,29 @@
 	), Raves (more monsters),
 	Boss, Spikes (Complete assets->items->1)
 
-	HUD -> Damage, Speed, Fireballs,
-
 	Sounds, BgMusic - Undertale - Megalovania
 
-	Menu, Levels,
-	Save Game / Restore Game (Local storage).
-
-	Limit hero's fireballs, and expand them using special items. -> show army in the items stack
-
+	Menu,
+	Save Game / Restore Game (Local Storage).
 
 	///
 	meteor (+)
 	shield (+)
-	gorilla
-	fix gorilla bomb delta
-	bomb
+	gorilla (+)
+	fix gorilla bomb delta (+)
+	bomb (+)
 	bird*
 	bunker?
 	mate
 	story lines for items, monsters, hero (ex: Gorilla)
+	rave,
+	rage,
+	boss,
+	sounds,
+	menu -> play, controls, rules,
+	auto save => (if exit during action -> e-dialog), settings,
+
+	remove p5js library -> clear canvas
 */
 
 // x. Predict block using object + use only type in Creature.switch (+)
@@ -196,7 +199,7 @@ const settings = {
 			bombTime: 200,
 			bombDamage: 20
 		},
-		ELECTRICITY: {
+		SMOKE: {
 			id: 110,
 			type: "VISUAL",
 			model: []
@@ -771,7 +774,11 @@ class Bullet extends Element {
 				this.size
 			);
 
-			if(c && c.constructor.name !== this.constructor.name) { // c and is not a bullet
+			if(
+				c && c.constructor.name !== this.constructor.name &&
+				c.type !== settings.gameAssets.BOMB.id
+			) { // c and is not a bullet and is not a bomb
+
 				b = false;
 
 				let d = settings.gameAssets;
@@ -1226,9 +1233,8 @@ class Lizard extends Monster {
 
 class Gorilla extends Monster {
 	/*
-	    Stupid monster that learned how to use spells, but sometimes he does it wrong.
-        Can summon his bomb in blocks.
-        Has a lot of HP, and can kill the hero alone.
+	    Big and slow monster that learned how to use the Magnific Bombs and now can teleport you to himself.
+        Has a lot of HP, and can kill the hero without any help.
 	*/
 
 	constructor() {
@@ -1286,7 +1292,13 @@ class Gorilla extends Monster {
 	spawnBomb(a, b) { // asl for bombs?
 		this.aslDelta.bomb = this.asl.bomb;
 
-		bombs.push(new Bomb(++bombsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombDamage));
+		bombs.push(new Bomb(
+			++bombsID,
+			null,
+			settings.gameAssets.GORILLA.bombTime,
+			settings.gameAssets.GORILLA.bombDamage,
+			this.pos
+		));
 	}
 
 	hit() {
@@ -1302,7 +1314,7 @@ class Gorilla extends Monster {
 }
 
 class Bomb extends Element {
-	constructor(id, pos, time, damage) {
+	constructor(id, pos, time, damage, target = null) {
 		super(false, 0, 0, settings.gameAssets.BOMB.id, 0);
 
 		this.model = settings.gameAssets.BOMB.model;
@@ -1319,6 +1331,8 @@ class Bomb extends Element {
 		this.power = 10;
 		this.damage = damage;
 
+		this.target = target || null; // WARNING: linked object (live position)
+
 		{
 			let a = player.OBJECT.pos,
 				b = 30; // range
@@ -1334,8 +1348,8 @@ class Bomb extends Element {
 		fill('rgba(255, 0, 0, .25)');
 		ellipse(this.pos.x + this.size / 2, this.pos.y + this.size / 2, this.frame, this.frame);
 
-		if(this.ex && this.frame <= settings.gameAssets.ELECTRICITY.model.length) {
-			let a = settings.gameAssets.ELECTRICITY.model,
+		if(this.ex && this.frame <= settings.gameAssets.SMOKE.model.length) {
+			let a = settings.gameAssets.SMOKE.model,
 				b = a[a.length - (a.length - this.frame)];
 
 			if(b) image(b, this.ex.x - b.width / 2, this.ex.y);
@@ -1359,7 +1373,7 @@ class Bomb extends Element {
 			this.explode();
 			this.exp = true;
 		} else if(
-			(this.ex && this.frame > settings.gameAssets.ELECTRICITY.model.length) || (
+			(this.ex && this.frame > settings.gameAssets.SMOKE.model.length) || (
 				!this.ex && this.time <= 0
 			)
 		) {
@@ -1374,55 +1388,62 @@ class Bomb extends Element {
 			b = (b, bb) => bb >= b - this.range && bb <= b + this.size + this.range;
 
 		if(b(a.pos.x, this.pos.x) && b(a.pos.y, this.pos.y)) {
-			let aa = () => {
-				let a = a => floor(random(a)),
-				b = a(map.length),
-				c = a(map[0].length),
-				d = map[b][c].object,
-				e = false;
-
-				if(!d || d.type === settings.gameAssets.LAVA.id) return aa();
-
-				e = false;
-				items.map(io => {
-					if(e) return;
-
-					if(
-						io.pos &&
-						io.type !== this.type &&
-						io.pos.x === d.pos.x &&
-						io.pos.y === d.pos.y - d.size
-					) e = true;
-				});
-				if(e) return aa();
-
-				e = false;
-				map.forEach(io => io.forEach(({ object }) => {
-					if(e) return;
-
-					if(
-						object &&
-						object.pos.x === d.pos.x &&
-						object.pos.y === d.pos.y - d.size
-					) e = true;
-				}));
-				if(e) return aa();
-
-				return d;
-			}
-
-			let c = aa();
-
 			this.frame = 0;
 			this.ex = Object.assign({}, a.pos);
 
-			a.pos = {
-				x: c.pos.x,
-				y: c.pos.y - a.height - 1
+			if(this.target) {
+				a.pos = {
+					x: this.target.x,
+					y: this.target.y
+				}
+			} else {
+				let aa = () => {
+					let a = a => floor(random(a)),
+					b = a(map.length),
+					c = a(map[0].length),
+					d = map[b][c].object,
+					e = false;
+
+					if(!d || d.type === settings.gameAssets.LAVA.id) return aa();
+
+					e = false;
+					items.map(io => {
+						if(e) return;
+
+						if(
+							io.pos &&
+							io.type !== this.type &&
+							io.pos.x === d.pos.x &&
+							io.pos.y === d.pos.y - d.size
+						) e = true;
+					});
+					if(e) return aa();
+
+					e = false;
+					map.forEach(io => io.forEach(({ object }) => {
+						if(e) return;
+
+						if(
+							object &&
+							object.pos.x === d.pos.x &&
+							object.pos.y === d.pos.y - d.size
+						) e = true;
+					}));
+					if(e) return aa();
+
+					return d;
+				}
+
+				let c = aa();
+
+				a.pos = {
+					x: c.pos.x,
+					y: c.pos.y - a.height - 1
+				}
 			}
 
-			a.velocity -= this.power;
-			a.declareDamage(this.damage);
+			// a.velocity -= this.power;
+			// a.declareDamage(this.damage);
 		}
 	}
 }
@@ -1438,8 +1459,6 @@ class Item extends Element {
 		this.id = id;
 
 		this.pos = null;
-
-		// TODO: Shake
 	}
 
 	render() {
@@ -1448,6 +1467,13 @@ class Item extends Element {
 		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
 
 		return this;
+	}
+
+	update() {
+		this.pos = {
+			x: this.pos.x + sin(this.pos.x),
+			y: this.pos.y + sin(this.pos.y)
+		}
 	}
 
 	destroy() {
@@ -1596,7 +1622,7 @@ function setup() {
 		'./assets/tpsmoke/6.gif',
 		'./assets/tpsmoke/7.gif'
 	].forEach(io => {
-		settings.gameAssets.ELECTRICITY.model.push(loadImage(io));
+		settings.gameAssets.SMOKE.model.push(loadImage(io));
 	})
 
 	player.OBJECT = new Hero;
@@ -1604,7 +1630,7 @@ function setup() {
 	// monsters.push(new Lizard);
 	monsters.push(new Gorilla);
 
-	// bombs.push(new Bomb(++bombsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombTime));
+	// bombs.push(new Bomb(++bombsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombTime, null));
 
 	// items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
@@ -1635,7 +1661,7 @@ function draw() {
 
 		}
 
-		itemsRefresh.wait = round(random(500, 5000)); // 500 - 5000
+		itemsRefresh.wait = round(random(500, 1000)); // 500 - 5000
 		itemsRefresh.delta = 1;
 	}
 
@@ -1680,7 +1706,7 @@ function draw() {
 	items.forEach(io => {
 		if(io.isVisible) {
 			touchableElements.push(io);
-			io.render();
+			io.render().update();
 		}
 	});
 
