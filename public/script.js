@@ -23,9 +23,9 @@
 	gorilla (+)
 	fix gorilla bomb delta (+)
 	bomb (+)
-	bird* -> class Bird
-	bunker?
-	mate
+	bird* -> class Bird (+)
+	bunker? (+)
+	mate 
 	story lines for items, monsters, hero (ex: Gorilla)
 	rave,
 	rage,
@@ -86,39 +86,45 @@ const settings = {
 			health: 45,
 			model: null
 		},
-		HELMET: {
+		ARMOR_4: {
 			id: 23,
+			type: "ITEM",
+			health: 115,
+			model: null
+		},
+		HELMET: {
+			id: 24,
 			type: "ITEM",
 			health: 30,
 			model: null
 		},
 		BOOTS: {
-			id: 24,
+			id: 25,
 			type: "ITEM",
 			speed: 5,
 			limit: 600,
 			model: null
 		},
 		SHIELD_ITEM: {
-			id: 25,
+			id: 26,
 			type: "ITEM",
 			model: null
 		},
 		HEALTH_BOTTLE: {
-			id: 26,
+			id: 27,
 			type: "ITEM",
 			health: 120,
 			model: null
 		},
 		MATE_SPAWNER: {
 			name: "Mate",
-			id: 27,
+			id: 28,
 			type: "ITEM",
 			model: null
 		},
 		METEOR_SUMMONER: {
 			name: "Meteor",
-			id: 28,
+			id: 29,
 			type: "ITEM",
 			model: null
 		},
@@ -204,17 +210,31 @@ const settings = {
 			type: "MONSTER",
 			model: null,
 			health: 5,
-			regeneration: 0,
-			minSpeed: 2,
-			maxSpeed: 8,
-			bombDelta: 200,
+			minSpeed: 5,
+			maxSpeed: 15,
+			bombDelta: 150,
 			bombTime: 100,
-			bombDamage: 80
+			bombDamage: 80,
+			throwRange: 30
 		},
 		SMOKE: {
 			id: 110,
 			type: "VISUAL",
 			model: []
+		},
+		MATE: {
+			id: 130,
+			type: "HERO",
+			models: {
+				app: [],
+				attack: []
+			},
+			heatlh: 100,
+			regeneration: 15,
+			damage: 5,
+			minSpeed: 2,
+			maxSpeed: 6,
+			bulletRange: 300 // IO
 		}
 	},
 	itemKeys: [
@@ -231,7 +251,7 @@ let player = {
 		fly: null,
 	},
 	OBJECT: null,
-	heatlh: 1,
+	heatlh: 125,
 	regeneration: 5,
 	damage: 10,
 	minSpeed: 4.5,
@@ -249,6 +269,9 @@ let player = {
 
 	bombs = [],
 	bombsID = 0,
+
+	mates = [],
+	matesID = 0,
 
 	items = [],
 	itemsID = 0,
@@ -353,7 +376,7 @@ class Creature {
 		this.id = id;
 
 		this.models = models;
-		this.model = this.models.idle || this.models;
+		this.model = (this.models && this.models.idle) || this.models;
 
 		this.damage = damage;
 		this.bulletRange = bulletRange;
@@ -520,6 +543,15 @@ class Creature {
 							this.set.armor = {
 								name: "ARMOR_3",
 								health: settings.gameAssets.ARMOR_3.health
+							}
+						}
+					break;
+					case settings.gameAssets.ARMOR_4.id:
+						xTestObject.destroy();
+						if(this.race === 'hero') {
+							this.set.armor = {
+								name: "ARMOR_4",
+								health: settings.gameAssets.ARMOR_4.health
 							}
 						}
 					break;
@@ -830,8 +862,8 @@ class Hero extends Creature {
 			0, // id
 			'hero', // race
 			null, // pos (default 0 - 0)
-			125, // maxHealth
-			125, // health
+			player.heatlh, // maxHealth
+			player.heatlh, // health
 			{ // models / model
 				idle: player.models.idle,
 				run: player.models.run,
@@ -854,6 +886,10 @@ class Hero extends Creature {
 		// this.height = 35; // this.model.height -> 1?
 
 		this.items = [];
+		this.items.push({
+			name: "MATE_SPAWNER",
+			runKey: 70
+		});
 	}
 
 	render() {
@@ -1012,6 +1048,10 @@ class Hero extends Creature {
 		b.splice(c, 1);
 
 		switch(d) {
+			case settings.gameAssets.MATE_SPAWNER.id: {
+				mates.push(new Mate(++matesID, this));
+			}
+			break;
 			case settings.gameAssets.METEOR_SUMMONER.id: {
 				let e = Object.assign({}, this.pos);
 				e.y -= this.height * 2;
@@ -1023,6 +1063,47 @@ class Hero extends Creature {
 			break;
 			default:break;
 		}
+	}
+}
+
+class Mate extends Creature {
+	constructor(id, post) {
+		super(
+			id,
+			'hero',
+			{
+				x: post.pos.x + (post.movement * 15),
+				y: post.pos.y
+			},
+			settings.gameAssets.MATE.health,
+			settings.gameAssets.MATE.health,
+			settings.gameAssets.MATE.model, // !!!
+			37.5,
+			32,
+			settings.gameAssets.MATE.regeneration,
+			settings.gameAssets.MATE.damage,
+			50, // asl
+			5, // speed
+			10, // jh
+			2, // mj
+			settings.gameAssets.MATE.bulletRange,
+			settings.gameAssets.MATE.bulletSpeed,
+			10
+		);
+	}
+
+	render() {
+		image(this.model, this.pos.x, this.pos.y, this.height, this.width);
+
+		return this;
+	}
+
+	update() {
+		return this;
+	}
+
+	think() {
+		return this;
 	}
 }
 
@@ -1494,9 +1575,97 @@ class Gorilla extends Monster {
 	}
 }
 
-class Bird {
-	constructor() {
+class Bird extends Element {
+	constructor(id) {
+		let a = settings.gameAssets.BIRD;
 
+		super(
+			false,
+			-1,
+			-1,
+			a.id,
+			id
+		);
+
+		this.id = id;
+		this.size = 50;
+
+		this.pos = {
+			x: innerWidth + this.size,
+			y: random(settings.playerHBHeight, settings.playerHBHeight + this.size)
+		}
+
+		this.dir = {
+			x: -1,
+			y: 0
+		}
+		this.speed = {
+			x: random(a.minSpeed, a.maxSpeed),
+			y: .25
+		}
+
+		this.model = a.model;
+		this.health = a.health;
+
+		this.bombAsl = a.bombDelta;
+		this.bombDelta = 0;
+		this.bombTime = a.bombTime;
+		this.bombDamage = a.bombDamage;
+		this.throwRange = a.throwRange;
+	}
+
+	render() {
+		image(settings.gameAssets.BIRD.model, this.pos.x, this.pos.y, this.size, this.size);
+
+		return this;
+	}
+
+	update() {
+		this.pos.x += this.dir.x * this.speed.x;
+		this.pos.y += random(-1, 1) * this.dir.y;
+
+		if(--this.bombDelta < 0) {
+			this.bombDelta = 0;
+		}
+
+		if(this.pos.x + this.size < 0) {
+			monsters.splice(monsters.findIndex(io => io.id === this.id), 1);
+		}
+
+		return this;
+	}
+
+	think() {
+		let a = player.OBJECT;
+
+		if(
+			(this.pos.y < a.pos.y) &&
+			(a.pos.x > this.pos.x - this.throwRange && a.pos.x < this.pos.x + this.size + this.throwRange) &&
+			this.bombDelta <= 0
+		) {
+			this.throwBomb();
+		}
+
+		return this;
+	}
+
+	throwBomb() {
+		this.bombDelta = this.bombAsl;
+		
+		// id, pos, time, damage, target = null, gstatic = true, color = 'red'
+
+		bombs.push(new Bomb(
+			++bombsID,
+			{
+				x: this.pos.x,
+				y: this.pos.y + this.size
+			},
+			this.bombTime,
+			this.bombDamage,
+			null,
+			false,
+			'blue'
+		));
 	}
 }
 
@@ -1597,6 +1766,7 @@ function setup() {
 	settings.gameAssets.ARMOR_1.model          = loadImage('./assets/items/arm1.png');
 	settings.gameAssets.ARMOR_2.model          = loadImage('./assets/items/arm2.png');
 	settings.gameAssets.ARMOR_3.model          = loadImage('./assets/items/arm3.png');
+	settings.gameAssets.ARMOR_4.model          = loadImage('./assets/items/arm4.png')
 	settings.gameAssets.HERO_BULLET.model      = loadImage('./assets/bullets/fireball.png');
 	settings.gameAssets.LIZARD_BULLET.model    = loadImage('./assets/bullets/monster1.gif');
 	settings.gameAssets.MONSTER_2_BULLET.model = loadImage('./assets/bullets/monster2.gif');
@@ -1617,6 +1787,7 @@ function setup() {
 	player.models.jump                         = loadImage('./assets/hero/jump.png');
 	player.models.fly                          = loadImage('./assets/hero/fly.gif');
 
+	// Lava models
 	[
 		'./assets/lava/1.png',
 		'./assets/lava/2.png',
@@ -1666,6 +1837,7 @@ function setup() {
 		settings.gameAssets.LAVA.model.push(loadImage(io));
 	});
 
+	// Visual Smoke models
 	[
 		'./assets/tpsmoke/1.gif',
 		'./assets/tpsmoke/2.gif',
@@ -1676,6 +1848,27 @@ function setup() {
 		'./assets/tpsmoke/7.gif'
 	].forEach(io => {
 		settings.gameAssets.SMOKE.model.push(loadImage(io));
+	});
+
+	// Mate models
+		// -> app
+	[
+		'./assets/mate/app_1.png',
+		'./assets/mate/app_2.png',
+		'./assets/mate/app_3.png',
+		'./assets/mate/app_4.png'
+	].forEach(io => {
+		settings.gameAssets.MATE.model.app.push(loadImage(io));
+	});
+
+		// -> attack
+	[
+		'./assets/mate/attack_1.png',
+		'./assets/mate/attack_2.png',
+		'./assets/mate/attack_3.png',
+		'./assets/mate/attack_4.png'
+	].forEach(io => {
+		settings.gameAssets.MATE.model.
 	})
 
 	player.OBJECT = new Hero;
@@ -1683,15 +1876,16 @@ function setup() {
 	// monsters.push(new Slime);
 	// monsters.push(new Lizard);
 	// monsters.push(new Gorilla);
-	monsters.push(new Bird);
+	// monsters.push(new Bird(++monstersID));
 
 	// items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_2.model, true, settings.gameAssets.ARMOR_2.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_3.model, true, settings.gameAssets.ARMOR_3.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_4.model, true, settings.gameAssets.ARMOR_4.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.HELMET.model, true, settings.gameAssets.HELMET.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id));
-	// items.push(new Item(++itemsID, settings.gameAssets.MATE_SPAWNER.model, true, settings.gameAssets.MATE_SPAWNER.id));
+	items.push(new Item(++itemsID, settings.gameAssets.MATE_SPAWNER.model, true, settings.gameAssets.MATE_SPAWNER.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.METEOR_SUMMONER.model, true, settings.gameAssets.METEOR_SUMMONER.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.SHIELD_ITEM.model, true, settings.gameAssets.SHIELD_ITEM.id));
 
@@ -1783,10 +1977,15 @@ function draw() {
 		io.render().update().think();
 	});
 
+	mates.forEach(io => {
+		io.render().update().think();
+	});
 	player.OBJECT.render().update().regenerate();
 }
 
 function keyPressed() {
+	if(!player.OBJECT) return;
+
 	if([65, 68].includes(keyCode)) {
 		player.OBJECT.controlPos((keyCode === 65) ? -1 : 1);
 	} else if(keyCode === 32) {
@@ -1799,6 +1998,8 @@ function keyPressed() {
 }
 
 function keyReleased() {
+	if(!player.OBJECT) return;
+
 	if([65, 68].includes(keyCode)) {
 		player.OBJECT.controlPos(0);
 	}
