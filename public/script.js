@@ -26,9 +26,8 @@
 	bird (+)
 	mage (+)
 	monsters can't attack mage-fix (+)
-	mage -> use item. display armor (+)
+	mage -> display armor (+)
 	_1.1 : story lines for items, monsters, hero (ex: Gorilla) (+)
-	_1.8 : damage light
 	_1.2 : rave,
 	_1.3 : rage,
 	_1.4 : boss,
@@ -39,12 +38,12 @@
 	remove p5js library -> clear canvas
 */
 
-// x. Predict block using object + use only type in Creature.switch (+)
-// x. Use Element id to delete bullet and calculate monster's hp (+)
-// x. Fix items array. => {} -> [] ---> redraw (+)
-// x. Fix BAD::2H3_sjn2 - Bad Queue (+)
-// 1. Hero health by object
-// END. noLoop() on die + TODO
+/*
+	
+	-- PERFORMANCE --
+	VOID: Mage -> run, jump, attack
+
+*/
 
 const settings = {
 	canvas: {
@@ -55,6 +54,10 @@ const settings = {
 	},
 	inGame: true,
 	playerHBHeight: 17.5, // 17.5
+	rave: {
+		ravesTime: 35,
+		ravesTimeRange: 15
+	},
 	gameAssets: {
 		BACKGROUND: {
 			type: "THEME",
@@ -169,6 +172,7 @@ const settings = {
 		},
 		SLIME: {
 			id: 90,
+			class: 'Slime',
 			type: "MONSTER",
 			subType: "GROUND",
 			model: null,
@@ -183,6 +187,7 @@ const settings = {
 		},
 		LIZARD: {
 			id: 91,
+			class: 'Lizard',
 			type: "MONSTER",
 			subType: "GROUND",
 			model: null,
@@ -199,6 +204,7 @@ const settings = {
 		},
 		GORILLA: {
 			id: 92,
+			class: 'Gorilla',
 			type: "MONSTER",
 			subType: "GROUND",
 			model: null,
@@ -217,6 +223,7 @@ const settings = {
 		},
 		BIRD: {
 			id: 93,
+			class: 'Bird',
 			type: "MONSTER",
 			subType: "FLY",
 			model: null,
@@ -311,8 +318,24 @@ let player = {
 		delta: 0
 	},
 
+	touchableElements = [],
 
-	touchableElements = [];
+	session = {
+		startTime: settings.canvas.FPS * 5, // 5s
+		monsterMinTime: settings.canvas.FPS, // 1s
+		monsterMaxTime: settings.canvas.FPS * 3, // 3s
+		monsterDelta: 0,
+
+		isRave: false,
+		raveDelta: Math.floor(Math.random() * 2000),
+		raveEnd: 1200,
+		ravesTi: Infinity, // null
+
+		isRage: false,
+		rageDelta: Math.floor(Math.random() * 4000),
+		rageEnd: 1200,
+		ragesTi: Infinity, // null
+	}
 
 // 0 - void
 // 1 - block
@@ -322,10 +345,10 @@ const map = [
 	[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 0/*1*/, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1/*2*/, 1, 1, 1/*2*/, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
 
 class Element {
@@ -737,7 +760,6 @@ class Creature {
 
 	controlPos(mov) {
 		this.movement = mov;
-		this.touches = { x: false, y: false };
 	}
 
 	jump(iterations = 1) {
@@ -896,14 +918,9 @@ class Hero extends Creature {
 		super(...props);
 
 		this.items = [];
-
-		this.items.push({
-			name: "MAGE_SPAWNER",
-			runKey: 70
-		});
 	}
 
-		takeItem(item) {
+	takeItem(item) {
 		let a = this.items,
 			b = settings.itemKeys,
 			c = false;
@@ -1597,24 +1614,26 @@ class Bomb extends Element {
 }
 
 class Monster extends Creature {
-	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed, bulletRange, bulletSpeed, asl, jh, subType, typenum) {
+	constructor(id, health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed, bulletRange, bulletSpeed, asl, jh, subType, typenum) {
+		let a = (!session.isRage) ? 1 : 2;
+
 		super(
-			++monstersID,
+			id,
 			'monster',
 			pos,
-			health,
-			health,
+			health * a,
+			health * a,
 			model,
 			size,
 			size,
-			regen,
-			damage,
-			asl,
-			random(minSpeed, maxSpeed),
+			regen * a,
+			damage * a,
+			asl / a,
+			random(minSpeed * a, maxSpeed * a),
 			jh,
 			maxJumps,
 			bulletRange,
-			bulletSpeed,
+			bulletSpeed * a,
 			typenum
 		);
 
@@ -1661,24 +1680,26 @@ class Monster extends Creature {
 	}
 }
 
-class Slime extends Monster {
+window.Slime = class Slime extends Monster {
 	/*
 		A green clot of a radioactive substance from the another world.
 	*/
 
-	constructor() {
-		let a = settings.gameAssets.SLIME;
+	constructor(id, rs) {
+		let a = settings.gameAssets.SLIME,
+			b = 30;
 
 		super(
+			id,
 			a.health, // heatlh
 			a.model, // model
 			a.regeneration, // regeneration power
 			{ // position
-				x: settings.canvas.width,
+				x: (rs) ? settings.canvas.width : 0 - b,
 				y: 0
 			},
 			a.damage, // damage
-			30, // size
+			b, // size
 			a.maxJumps, // maxJumps
 			a.minSpeed, // minSpeed
 			a.maxSpeed, // maxSpeed
@@ -1734,22 +1755,23 @@ class Slime extends Monster {
 	}
 }
 
-class Lizard extends Monster {
+window.Lizard = class Lizard extends Monster {
 	/*
 		Fast shit that can kill you without any problems.
 		Takes a long distance from a target to could attack and protect itself.
 	*/
 
-	constructor() {
+	constructor(id, rs) {
 		let a = settings.gameAssets.LIZARD,
 			b = 30; // size
 
 		super(
+			id,
 			a.health, // heatlh
 			a.model, // model
 			a.regeneration, // regeneration power
 			{ // position
-				x: settings.canvas.width,
+				x: (rs) ? settings.canvas.width : 0 - b,
 				y: 0
 			},
 			a.damage, // damage
@@ -1844,22 +1866,23 @@ class Lizard extends Monster {
 	}
 }
 
-class Gorilla extends Monster {
+window.Gorilla = class Gorilla extends Monster {
 	/*
 	    Big and slow monster that learned how to use the Magnific Bombs and now can teleport you.
         Has a lot of HP, and can kill a target without any help.
 	*/
 
-	constructor() {
+	constructor(id, rs) {
 		let a = settings.gameAssets.GORILLA,
 			b = 45; // size
 
 		super(
+			id,
 			a.health, // heatlh
 			a.model, // model
 			a.regeneration, // regeneration power
 			{ // position
-				x: settings.canvas.width,
+				x: (rs) ? settings.canvas.width : 0 - b,
 				y: 0
 			},
 			a.damage, // damage
@@ -1904,7 +1927,8 @@ class Gorilla extends Monster {
 		}
 	}
 
-	spawnBomb(a, b) { // asl for bombs?
+	spawnBomb(a, b) { // funkar inte
+		console.log("A");
 		this.aslDelta.bomb = this.asl.bomb;
 
 		bombs.push(new Bomb(
@@ -1930,14 +1954,17 @@ class Gorilla extends Monster {
 	}
 }
 
-class Bird extends Element {
+window.Bird = class Bird extends Element {
 	/*
 		Fast monster that looks like a bird drops a Magnific Bomb when a target is under him.
 	*/
 
-	constructor(id) {
+	constructor(id, rs) {
 		let a = settings.gameAssets.BIRD,
-			b = [-1, 1][round(random(0, 1))];
+			b = {
+				true: -1,
+				false: 1
+			}[rs];
 
 		super(
 			false,
@@ -2067,18 +2094,12 @@ class Item extends Element {
 	}
 
 	render() {
+		if(!this.isVisible) return;
 		if(!this.pos) this.pos = this.genPos();
 
 		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
 
 		return this;
-	}
-
-	update() {
-		this.pos = {
-			x: this.pos.x + sin(this.pos.x),
-			y: this.pos.y + sin(this.pos.y)
-		}
 	}
 
 	destroy() {
@@ -2094,7 +2115,7 @@ class Item extends Element {
 			d = map[b][c].object,
 			e = false;
 
-			// Prevent spawn under lava
+			// Prevent spawn above lava
 			if(!d || d.type === settings.gameAssets.LAVA.id) return aa();
 
 			// Validate if no items on this position
@@ -2417,10 +2438,10 @@ function setup() {
 
 	player.OBJECT = new Player;
 
-	monsters.push(new Slime);
-	// monsters.push(new Lizard);
-	// monsters.push(new Gorilla);
-	// monsters.push(new Bird(++monstersID));
+	// monsters.push(new Slime(++monstersID, true));
+	// monsters.push(new Lizard(++monstersID, true));
+	// monsters.push(new Gorilla(++monstersID, true));
+	// monsters.push(new Bird(++monstersID, true));
 
 	// items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
@@ -2429,7 +2450,7 @@ function setup() {
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_4.model, true, settings.gameAssets.ARMOR_4.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.HELMET.model, true, settings.gameAssets.HELMET.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id));
-	items.push(new Item(++itemsID, settings.gameAssets.MAGE_SPAWNER.model, true, settings.gameAssets.MAGE_SPAWNER.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.MAGE_SPAWNER.model, true, settings.gameAssets.MAGE_SPAWNER.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.METEOR_SUMMONER.model, true, settings.gameAssets.METEOR_SUMMONER.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.SHIELD_ITEM.model, true, settings.gameAssets.SHIELD_ITEM.id));
 
@@ -2438,8 +2459,98 @@ function setup() {
 }
 
 function draw() {
+	// Background
 	image(settings.gameAssets.BACKGROUND.model, 0, 0, settings.canvas.width, settings.canvas.height);
 
+	// Draw start time
+	if(session.startTime) {
+		session.startTime--;
+
+		textFont(mainFont);
+		textSize(64);
+		textAlign(CENTER);
+		fill(245);
+		text(`STARTING IN: ${ round(session.startTime / settings.canvas.FPS) }`, settings.canvas.width / 2, settings.playerHBHeight + 75);
+	}
+
+	// Rave
+	if(session.ravesTi && --session.raveDelta <= 0) {
+		if(--session.ravesTi <= 0) {
+			session.ravesTi = null; // NO raves on this level.
+		}
+
+		session.isRave = true;
+	}
+
+	if(!session.startTime && session.isRave && --session.raveEnd) {
+		let a = a => session.raveEnd % a,
+			b = '';
+
+		if(a(2) === 0) {
+			b = 'red';
+		} else {
+			b = 'blue'
+		}
+
+		textFont(mainFont);
+		textSize(64);
+		textAlign(CENTER);
+		fill(b);
+		text("RAVE", settings.canvas.width / 2, settings.playerHBHeight + 75);
+
+		if(session.raveEnd <= 0) {
+			session.isRave = false;
+		}
+	}
+
+	// Rage
+	if(session.ragesTi && --session.rageDelta <= 0) {
+		if(--session.ragesTi <= 0) {
+			session.ragesTi = null;
+		}
+
+		session.isRage = true;
+	}
+
+	if(!session.startTime && session.isRage && --session.rageEnd) {
+		let a = a => session.rageEnd % a,
+			b = '';
+
+		if(a(2) === 0) {
+			b = 'red';
+		} else {
+			b = 'blue'
+		}
+
+		textFont(mainFont);
+		textSize(64);
+		textAlign(CENTER);
+		fill(b);
+		text("RAGE", settings.canvas.width / 2, settings.playerHBHeight + 75);
+
+		if(session.rageEnd <= 0) {
+			session.isRage = false;
+		}
+	}
+
+	// Spawn Monster
+	if(!session.startTime && settings.inGame && --session.monsterDelta <= 0) { // spawn new monster
+		session.monsterDelta = (!session.isRave) ? ( // reload monster delta
+			random(session.monsterMinTime, session.monsterMaxTime)
+		) : (
+			random(settings.rave.ravesTime - settings.rave.ravesTimeRange, settings.rave.ravesTime + settings.rave.ravesTimeRange)
+		);
+
+		let a = Object.values(settings.gameAssets) // set variable, create an array with all objects from gameAssets pack
+			.filter(io => io.type === "MONSTER") // get all monsters in the gameAssets array
+			.map(io => io.class); // return array that contains only class names
+
+		monsters.push( // spawn random monster
+			new window[a[floor(random(a.length))]](++monstersID, [true, false][round(random(0, 1))])
+		);
+	}
+
+	// Spawn item
 	if(++itemsRefresh.delta >= itemsRefresh.wait && settings.inGame) {
 		if(!itemsRefresh.started) {
 			itemsRefresh.started = true;
@@ -2457,6 +2568,7 @@ function draw() {
 		itemsRefresh.delta = 1;
 	}
 
+	// Game Over text
 	if(!settings.inGame) {
 		textFont(mainFont);
 		textSize(64);
@@ -2496,10 +2608,8 @@ function draw() {
 	});
 
 	items.forEach(io => {
-		if(io.isVisible) {
-			touchableElements.push(io);
-			io.render().update();
-		}
+		touchableElements.push(io);
+		io.render();
 	});
 
 	bombs.forEach(io => {
