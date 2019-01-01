@@ -4,7 +4,7 @@
 	Monsters -> ground, air,
 	Lava,
 	Animations, End Animations, Damage light,
-	Mate,
+	Mage,
 	Rages ( stronger monsters:
 		hp: x2,
 		damage: x2,
@@ -23,9 +23,9 @@
 	gorilla (+)
 	fix gorilla bomb delta (+)
 	bomb (+)
-	bird* -> class Bird (+)
-	bunker? (+)
-	mate 
+	bird (+)
+	mage
+	monsters can't attack mage-fix
 	story lines for items, monsters, hero (ex: Gorilla)
 	rave,
 	rage,
@@ -116,8 +116,8 @@ const settings = {
 			health: 120,
 			model: null
 		},
-		MATE_SPAWNER: {
-			name: "Mate",
+		MAGE_SPAWNER: {
+			name: "Mage",
 			id: 28,
 			type: "ITEM",
 			model: null
@@ -160,9 +160,15 @@ const settings = {
 			type: "BULLET",
 			model: null
 		},
+		MAGE_BULLET: {
+			id: 73,
+			type: "BULLET",
+			model: null
+		},
 		SLIME: {
 			id: 90,
 			type: "MONSTER",
+			subType: "GROUND",
 			model: null,
 			health: 75,
 			regeneration: 0,
@@ -176,6 +182,7 @@ const settings = {
 		LIZARD: {
 			id: 91,
 			type: "MONSTER",
+			subType: "GROUND",
 			model: null,
 			health: 20,
 			regeneration: 5,
@@ -191,6 +198,7 @@ const settings = {
 		GORILLA: {
 			id: 92,
 			type: "MONSTER",
+			subType: "GROUND",
 			model: null,
 			health: 200,
 			regeneration: 75,
@@ -208,6 +216,7 @@ const settings = {
 		BIRD: {
 			id: 93,
 			type: "MONSTER",
+			subType: "FLY",
 			model: null,
 			health: 5,
 			minSpeed: 5,
@@ -222,19 +231,37 @@ const settings = {
 			type: "VISUAL",
 			model: []
 		},
-		MATE: {
+		ELECTRO: {
+			id: 111,
+			type: "VISUAL",
+			model: []
+		},
+		MAGE: {
 			id: 130,
 			type: "HERO",
 			models: {
 				app: [],
-				attack: []
+				attack: [],
+				go: [],
+				jump: [],
+				stay: [],
+				summon: [],
+				dead: []
 			},
-			heatlh: 100,
+			health: 100,
 			regeneration: 15,
-			damage: 5,
+			shootDamage: 5,
+			hitDamage: 20,
+			teleportDamage: 15,
 			minSpeed: 2,
 			maxSpeed: 6,
-			bulletRange: 300 // IO
+			bulletRange: Infinity,
+			bulletSpeed: 20,
+			shootDelta: 60,
+			hitDelta: 180,
+			teleportDelta: 150,
+			hitRange: 300,
+			alive: 1000 // dep frames
 		}
 	},
 	itemKeys: [
@@ -270,8 +297,8 @@ let player = {
 	bombs = [],
 	bombsID = 0,
 
-	mates = [],
-	matesID = 0,
+	mages = [],
+	magesID = 0,
 
 	items = [],
 	itemsID = 0,
@@ -289,13 +316,13 @@ let player = {
 // 2 - lava
 const map = [
 	[0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	[0, 0, 0, 0, 0, 0, 0/*1*/, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1/**/, 1, 1, 1/**/, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1/*2*/, 1, 1, 1/*2*/, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
 
 class Element {
@@ -486,7 +513,7 @@ class Creature {
 				yTest = yTest.type;
 			}
 
-			if([xTest, yTest].includes(1) || [xTest, yTest].includes(2)) { // if material is block or lava
+			if([xTest, yTest].includes(1) || [xTest, yTest].includes(2)) { // if magerial is block or lava
 				if([xTest, yTest].includes(2)) {
 					if(!damage) damage += 10;
 					if(this.race === 'hero') this.jumps = 0;
@@ -510,7 +537,7 @@ class Creature {
 					
 					(a || b) && this.detectObstacle(a, b);
 				}
-			} else if(xTest || yTest) { // if material is health bottle
+			} else if(xTest || yTest) { // if magerial is health bottle
 				if(xTest !== yTest) return;
 
 				switch(xTest) {
@@ -583,10 +610,10 @@ class Creature {
 							}
 						}
 					break;
-					case settings.gameAssets.MATE_SPAWNER.id:
+					case settings.gameAssets.MAGE_SPAWNER.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
-							this.takeItem("MATE_SPAWNER");
+							this.takeItem("MAGE_SPAWNER");
 						}
 					break;
 					case settings.gameAssets.METEOR_SUMMONER.id:
@@ -596,6 +623,7 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.HERO_BULLET.id:
+					case settings.gameAssets.MAGE_BULLET.id:
 						if(this.race !== 'hero') {
 							xTestObject.destroy();
 							damage += xTestObject.damage;
@@ -822,10 +850,8 @@ class Bullet extends Element {
 				c && c.constructor.name !== this.constructor.name &&
 				c.type !== settings.gameAssets.BOMB.id
 			) { // c and is not a bullet and is not a bomb
-
 				b = false;
 
-				let d = settings.gameAssets;
 				(c.destroy && c.destroy()); // if can be destroyed then destroy
 			}
 		})
@@ -857,6 +883,68 @@ class Bullet extends Element {
 }
 
 class Hero extends Creature {
+	constructor(...props) {
+		super(...props);
+
+		this.items = [];
+
+		this.items.push({
+			name: "MAGE_SPAWNER",
+			runKey: 70
+		});
+	}
+
+		takeItem(item) {
+		let a = this.items,
+			b = settings.itemKeys,
+			c = false;
+
+		if(a.length > b.length - 1) {
+			a.splice(0, 1);
+			c = true;
+		}
+
+		a.forEach((io, ia, arr) => { // restore keys order
+			arr[ia].runKey = b[ia];
+		});
+
+		a.push({
+			name: item,
+			runKey: b[a.length]
+		});
+	}
+
+	useItem(a) {
+		if(!this.isAlive) return;
+
+		let b = this.items,
+			c = b.findIndex(({ runKey: b }) => b === a); // Find the first item with that id and use it.
+
+		if(c < 0) return;
+
+		let d = settings.gameAssets[b[c].name].id; // get id
+		b.splice(c, 1);
+
+		switch(d) {
+			case settings.gameAssets.MAGE_SPAWNER.id: {
+				mages.push(new Mage(++magesID, this));
+			}
+			break;
+			case settings.gameAssets.METEOR_SUMMONER.id: {
+				let e = Object.assign({}, this.pos);
+				e.y -= this.height * 2;
+
+				e.height = 2;
+
+				meteors.push(new Meteor(++meteorsID, null, null, e));
+			}
+			break;
+			default:break;
+		}
+	}
+}
+
+class Player extends Hero {
 	constructor() {
 		super(
 			0, // id
@@ -884,12 +972,6 @@ class Hero extends Creature {
 
 		// this.width = 21; // this.model.width -> 1?
 		// this.height = 35; // this.model.height -> 1?
-
-		this.items = [];
-		this.items.push({
-			name: "MATE_SPAWNER",
-			runKey: 70
-		});
 	}
 
 	render() {
@@ -1015,95 +1097,265 @@ class Hero extends Creature {
 			this.bulletRange // rangeX
 		));
 	}
-
-	takeItem(item) {
-		let a = this.items,
-			b = settings.itemKeys,
-			c = false;
-
-		if(a.length > b.length - 1) {
-			a.splice(0, 1);
-			c = true;
-		}
-
-		a.forEach((io, ia, arr) => { // restore keys order
-			arr[ia].runKey = b[ia];
-		});
-
-		a.push({
-			name: item,
-			runKey: b[a.length]
-		});
-	}
-
-	useItem(a) {
-		if(!this.isAlive) return;
-
-		let b = this.items,
-			c = b.findIndex(({ runKey: b }) => b === a); // Find the first item with that id and use it.
-
-		if(c < 0) return;
-
-		let d = settings.gameAssets[b[c].name].id; // get id
-		b.splice(c, 1);
-
-		switch(d) {
-			case settings.gameAssets.MATE_SPAWNER.id: {
-				mates.push(new Mate(++matesID, this));
-			}
-			break;
-			case settings.gameAssets.METEOR_SUMMONER.id: {
-				let e = Object.assign({}, this.pos);
-				e.y -= this.height * 2;
-
-				e.height = 2;
-
-				meteors.push(new Meteor(++meteorsID, null, null, e));
-			}
-			break;
-			default:break;
-		}
-	}
 }
 
-class Mate extends Creature {
+class Mage extends Hero {
 	constructor(id, post) {
+		let a = settings.gameAssets.MAGE;
+
 		super(
 			id,
 			'hero',
 			{
-				x: post.pos.x + (post.movement * 15),
-				y: post.pos.y
+				x: post.pos.x + (post.direction * 45),
+				y: 0
 			},
-			settings.gameAssets.MATE.health,
-			settings.gameAssets.MATE.health,
-			settings.gameAssets.MATE.model, // !!!
-			37.5,
-			32,
-			settings.gameAssets.MATE.regeneration,
-			settings.gameAssets.MATE.damage,
+			a.health,
+			a.health,
+			null, // init after the super action
+			20,
+			20,
+			a.regeneration,
+			a.hitDamage, // damage
 			50, // asl
 			5, // speed
 			10, // jh
 			2, // mj
-			settings.gameAssets.MATE.bulletRange,
-			settings.gameAssets.MATE.bulletSpeed,
-			10
+			a.bulletRange,
+			a.bulletSpeed
 		);
+
+		this.frame = 0;
+		this.delay = 5;
+
+		this.stable = false;
+		this.target = null;
+
+		this.models = a.models;
+		this.status = "app"; // app, attack, go, stay, jump, summon, dead
+
+		this.alive = a.alive;
+
+		this.shootAsl = a.shootDelta;
+		this.shootDelta = 0;
+		this.teleportAsl = a.teleportDelta;
+		this.teleportDelta = 0;
+		this.hitAsl = a.hitDelta;
+		this.hitDelta = 0;
+
+		this.hiting = true;
+		this.hitFrame = 0;
+
+		this.shootDamage = a.shootDamage;
+		this.teleportDamage = a.teleportDamage;
 	}
 
 	render() {
-		image(this.model, this.pos.x, this.pos.y, this.height, this.width);
+		// Display hp and items
+
+		// TODO: Action animations
+		// Draw model
+		let a = this.models[this.status][this.frame];
+
+		if(a.height > this.height) { // I have no another idea how to fix that.
+			this.pos.y -= a.height - this.height;
+		}
+		this.height = a.height;
+		this.width = a.width;
+
+		image(a.model, this.pos.x, this.pos.y, this.width, this.height);
+
+		if(this.status !== 'app') {
+			let a = 12.5,
+				b = 10,
+				c = 10,
+				d = 45;
+
+			// Draw alive time
+			textFont(mainFont);
+			textSize(24);
+			textAlign(CENTER);
+			fill(255);
+			text(
+				`${ floor(this.alive / settings.canvas.FPS) }s`,
+				this.pos.x + d / 2 - c,
+				this.pos.y - 7.5 - b
+			);
+
+			// Draw health bar
+			fill('green');
+			rect(
+				this.pos.x - d / 2 + c,
+				this.pos.y - 12.5,
+				d / 100 * (100 / (this.maxHealth / this.health)),
+				b
+			);
+
+			// Draw hit effect
+			if(this.hitting) {
+				let a = 100;
+
+				image(
+					settings.gameAssets.ELECTRO.model[this.hitFrame],
+					this.pos.x - this.width - 5,
+					this.pos.y - this.height + 10,
+					a,
+					a
+				);
+			}
+		}
 
 		return this;
 	}
 
-	update() {
+	animate() {
+		if(--this.alive <= 0) {
+			return this.die();
+		}
+
+		if(--this.shootDelta < 0) {
+			this.shootDelta = 0;
+		}
+		if(--this.teleportDelta < 0) {
+			this.teleportDelta = 0;
+		}
+		if(--this.hitDelta < 0) {
+			this.hitDelta = 0;
+		}
+
+		if(this.hitting && ++this.hitFrame > settings.gameAssets.ELECTRO.model.length - 1) {
+			this.hitting = false;
+		}
+
+		if(--this.delay < 0) {
+			if(++this.frame > this.models[this.status].length - 1 && this.status === "app") {
+				this.status = 'summon';
+				this.stable = true;
+			}
+			if(this.frame > this.models[this.status].length - 1) {
+				this.frame = 0;
+			}
+			this.delay = 5;
+		}
+
 		return this;
 	}
 
 	think() {
+		if(!this.target) {
+			let a = monsters;
+
+			let tr = null;
+			if(a.length) { // monster
+				if(a.length === 1) {
+					tr = a[0];
+				} else {
+					let aa = (isTarget = false) => {
+						return a.find(io => io.health === max(
+							a.filter(io => (io.type === "GROUND" && io.isTarget === isTarget))
+							.map(io => io.health)
+						));
+					}
+
+					tr = aa(false);
+					if(!tr) tr = aa(true);
+				}
+			} else {
+				return this.pause();
+			}
+
+			this.target = tr;
+			this.target.isTarget = true;
+		} else { // validate target
+			if(this.target.isAlive === false) { // notarget?
+				this.target = null; // notarget
+				return this.think(); // restart alg
+			} else { // follow target
+				// attack if y1=y2 and throw to random(mage or hero) if y1!=y2
+				let b = 30, // y range
+					c = 40, // x range
+					d = this.target,
+					e = abs(this.pos.x - d.pos.x),
+					f = (
+						(this.pos.y > d.pos.y - b) &&
+						(this.pos.y < d.pos.y + d.size + b)
+					);
+
+				if(f && e > c && this.shootDelta <= 0) {
+					this.shoot();
+				} else if(this.teleportDelta <= 0 && e > c) { // throw + damage
+					this.teleport(this.target);
+				} else if(this.hitDelta <= 0 && e <= c) { // hit
+					this.hit(this.target);
+				}
+			}
+		}
+
 		return this;
+	}
+
+	teleport(target) {
+		this.teleportDelta = this.teleportAsl;
+		this.target.pos = Object.assign({}, this.pos);
+
+		this.hit(); // force
+	}
+
+	shoot() {
+		this.shootDelta = this.shootAsl;
+		bullets.push(new Bullet(
+			++bulletsID, // id
+			settings.gameAssets.MAGE_BULLET.id, // hostnum
+			this.shootDamage, // damage
+			settings.gameAssets.MAGE_BULLET.model, // model
+			{ // pos
+				x: this.pos.x,
+				y: this.pos.y
+			},
+			{ // dir
+				x: (this.target.pos.x > this.pos.x) ? 1 : -1,
+				y: 0
+			},
+			this.bulletSpeed, // speed
+			this.bulletRange // rangeX
+		));
+	}
+
+	hit(target) {
+		this.hitDelta = this.hitAsl;
+
+		this.hitting = true;
+		this.hitFrame = 0;
+
+		let a = settings.gameAssets.MAGE;
+
+		monsters.forEach(io => {
+			if(
+				(io.pos.x >= this.pos.x - a.hitRange && io.pos.x <= this.pos.x + this.width + a.hitRange) && // x
+				(io.pos.y >= this.pos.y - a.hitRange && io.pos.y <= this.pos.y + this.height + a.hitRange) // y
+			) {
+				if(io.pos.x < this.pos.x) {
+					io.pos.x -= 100;
+				} else {
+					io.pos.x -= 100;
+				}
+				io.velocity -= 15;
+				io.declareDamage(a.hitDamage);
+			}
+		});
+
+	}
+
+	pause() {
+		this.status = "dead";
+	}
+
+	die() {
+		if(this.target) {
+			this.target.isTarget = false;
+			this.target = null;
+		}
+		console.log("DIE");
 	}
 }
 
@@ -1275,7 +1527,7 @@ class Bomb extends Element {
 }
 
 class Monster extends Creature {
-	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed, bulletRange, bulletSpeed, asl, jh) {
+	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed, bulletRange, bulletSpeed, asl, jh, subType) {
 		super(
 			++monstersID,
 			'monster',
@@ -1295,21 +1547,37 @@ class Monster extends Creature {
 			bulletSpeed
 		);
 
+		this.type = subType;
 		this.size = size;
+
+		this.isTarget = false;
 	}
 
 	render() {
-		fill(255, 0, 0);
-
 		let hpHeight = 10,
 			hpMargin = 2.5;
 
+		// Draw target point
+		if(this.isTarget) {
+		fill('blue');
+			ellipse(
+				this.pos.x + this.size / 2 - 2.5,
+				this.pos.y - (hpHeight + hpMargin) - 30,
+				10,
+				10
+			);
+		}
+
+		// Draw health bar
+		fill(255, 0, 0);
 		rect(
 			this.pos.x - this.size / 3.5,
 			this.pos.y - (hpHeight + hpMargin),
 			this.size * 1.5 / 100 * (100 / (this.maxHealth / this.health)),
 			hpHeight
 		);
+
+		// Draw model
 		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
 
 		textFont(mainFont);
@@ -1342,22 +1610,23 @@ class Slime extends Monster {
 			0,
 			0,
 			a.attackDelta,
-			a.jumpHeight
+			a.jumpHeight,
+			a.subType
 		);
 	}
 
 	think() {
 		if(!settings.inGame) return;
 
-		// Move to the player
-		let a = player.OBJECT,
+		// Move to the target
+		let a = mages[0] || player.OBJECT,
 			b = this.pos,
 			c = 20, // rangeX
 			f = 5, // rangeY
 			d = a.pos.x + this.size / 2,
-			e = (
-				(d > b.x - c && d < b.x + this.size + c) && // x
-				(!(a.pos.y < b.y - f) && !(a.pos.y > b.y + this.size + f))
+			e = ( // REWRITE
+				d > b.x - c && d < b.x + this.size + c && // x
+				!(a.pos.y < b.y - f) && !(a.pos.y > b.y + this.size + f)
 			);
 
 		if(a.pos.x !== this.pos.x && !e) {
@@ -1367,13 +1636,18 @@ class Slime extends Monster {
 			}[a.pos.x > this.pos.x];
 		}
 
+		console.log((d > b.x - c, d < b.x + this.size + c), // x
+				(!(a.pos.y < b.y - f), !(a.pos.y > b.y + this.size + f)), this.aslDelta <= 0);
+		console.log(e);
+
 		if(e && this.aslDelta <= 0) this.attack();
 	}
 
 	attack() {
+		console.log("ATA");
 		this.jump();
 		this.aslDelta = this.asl;
-		player.OBJECT.declareDamage(this.damage);
+		(mages[0] || player.OBJECT).declareDamage(this.damage);
 	}
 
 	detectObstacle(a, b) {
@@ -1407,14 +1681,15 @@ class Lizard extends Monster {
 			a.bulletRange, // bulletrange
 			a.bulletSpeed, // bulletSpeed
 			a.attackDelta, // Bullet time restore
-			a.jumpHeight
+			a.jumpHeight,
+			a.subType
 		);
 	}
 
 	think() {
 		if(!settings.inGame) return;
 
-		let a = player.OBJECT,
+		let a = mages[0] || player.OBJECT,
 			b = this,
 			c = abs(a.pos.x - b.pos.x),
 			d = this.bulletRange,
@@ -1423,9 +1698,7 @@ class Lizard extends Monster {
 			g = "height",
 			h = a[f].y - e < b[f].y && a[f].y + a[g] + e > b[f].y + b[g];
 
-		if(
-			c > d * .9 || !h
-		) { // 
+		if(c > d * .9 || !h) { // 
 			this.movement = {
 				true: 1,
 				false: -1,
@@ -1484,7 +1757,7 @@ class Lizard extends Monster {
 				f = e[d],
 				g = e[d + this.movement];
 
-			if([f && f.material, g && g.material].includes(settings.gameAssets.LAVA.id)) {
+			if([f && f.magerial, g && g.magerial].includes(settings.gameAssets.LAVA.id)) {
 				this.jump();
 			}
 		}
@@ -1520,14 +1793,15 @@ class Gorilla extends Monster {
 				hit: a.attackDelta,
 				bomb: a.bombDelta
 			}, // attack time restore
-			a.jumpHeight
+			a.jumpHeight,
+			a.subType
 		);
 	}
 
 	think() {
 		if(!settings.inGame) return;
 
-		let a = player.OBJECT,
+		let a = mages[0] || player.OBJECT,
 			b = this.pos,
 			c = abs(a.pos.x - b.x),
 			d = settings.gameAssets.GORILLA.bombRange,
@@ -1564,7 +1838,7 @@ class Gorilla extends Monster {
 	}
 
 	hit() {
-		let a = player.OBJECT;
+		let a = mages[0] || player.OBJECT;
 		this.aslDelta.hit = this.asl.hit;
 
 		this.jump();
@@ -1577,26 +1851,28 @@ class Gorilla extends Monster {
 
 class Bird extends Element {
 	constructor(id) {
-		let a = settings.gameAssets.BIRD;
+		let a = settings.gameAssets.BIRD,
+			b = [-1, 1][round(random(0, 1))];
 
 		super(
 			false,
 			-1,
 			-1,
 			a.id,
-			id
+			id,
+			a.subType
 		);
 
 		this.id = id;
 		this.size = 50;
 
 		this.pos = {
-			x: innerWidth + this.size,
+			x: (b === -1) ? settings.canvas.width : 0 - this.size,
 			y: random(settings.playerHBHeight, settings.playerHBHeight + this.size)
 		}
 
 		this.dir = {
-			x: -1,
+			x: b,
 			y: 0
 		}
 		this.speed = {
@@ -1624,12 +1900,31 @@ class Bird extends Element {
 		this.pos.x += this.dir.x * this.speed.x;
 		this.pos.y += random(-1, 1) * this.dir.y;
 
+		// Detect bullets
+		touchableElements.forEach(io => {
+			if(io.type === settings.gameAssets.HERO_BULLET.id) {
+				let a = io.predictObstacle(
+					this.pos,
+					this.size,
+					this.size
+				);
+
+				if(a) {
+					this.kill();
+					a.destroy();
+				}
+			}
+		})
+
 		if(--this.bombDelta < 0) {
 			this.bombDelta = 0;
 		}
 
-		if(this.pos.x + this.size < 0) {
-			monsters.splice(monsters.findIndex(io => io.id === this.id), 1);
+		if(
+			(this.dir.x === -1 && this.pos.x + this.size < 0) ||
+			(this.dir.x === 1 && this.pos.x > settings.canvas.width)
+		) {
+			this.kill();
 		}
 
 		return this;
@@ -1666,6 +1961,10 @@ class Bird extends Element {
 			false,
 			'blue'
 		));
+	}
+
+	kill() {
+		monsters.splice(monsters.findIndex(io => io.id === this.id), 1);
 	}
 }
 
@@ -1770,9 +2069,10 @@ function setup() {
 	settings.gameAssets.HERO_BULLET.model      = loadImage('./assets/bullets/fireball.png');
 	settings.gameAssets.LIZARD_BULLET.model    = loadImage('./assets/bullets/monster1.gif');
 	settings.gameAssets.MONSTER_2_BULLET.model = loadImage('./assets/bullets/monster2.gif');
+	settings.gameAssets.MAGE_BULLET.model      = loadImage('./assets/bullets/mage.png');
 	settings.gameAssets.BOOTS.model            = loadImage('./assets/items/boots.png');
 	settings.gameAssets.HELMET.model           = loadImage('./assets/items/helm.png');
-	settings.gameAssets.MATE_SPAWNER.model     = loadImage('./assets/items/mateSpawner.png');
+	settings.gameAssets.MAGE_SPAWNER.model     = loadImage('./assets/items/mageSpawner.png');
 	settings.gameAssets.SHIELD_ITEM.model      = loadImage('./assets/items/shield.png');
 	settings.gameAssets.SHIELD.model           = loadImage('./assets/items/shieldEffect.png');
 	settings.gameAssets.METEOR_SUMMONER.model  = loadImage('./assets/items/sMeteor.png');
@@ -1850,30 +2150,189 @@ function setup() {
 		settings.gameAssets.SMOKE.model.push(loadImage(io));
 	});
 
-	// Mate models
-		// -> app
-	[
-		'./assets/mate/app_1.png',
-		'./assets/mate/app_2.png',
-		'./assets/mate/app_3.png',
-		'./assets/mate/app_4.png'
+	// Mage models
+	[ // -> app
+		{
+			model: './assets/mage/app_1.png',
+			height: 20,
+			width: 20,
+			arr: 'app'
+		},
+		{
+			model: './assets/mage/app_2.png',
+			height: 20,
+			width: 20,
+			arr: 'app'
+		},
+		{
+			model: './assets/mage/app_3.png',
+			height: 20,
+			width: 20,
+			arr: 'app'
+		},
+		{
+			model: './assets/mage/app_4.png',
+			height: 20,
+			width: 20,
+			arr: 'app'
+		},
+		{
+			model: './assets/mage/attack_1.png',
+			height: 20,
+			width: 20,
+			arr: 'attack'
+		},
+		{
+			model: './assets/mage/attack_2.png',
+			height: 20,
+			width: 20,
+			arr: 'attack'
+		},
+		{
+			model: './assets/mage/attack_3.png',
+			height: 20,
+			width: 20,
+			arr: 'attack'
+		},
+		{
+			model: './assets/mage/attack_4.png',
+			height: 20,
+			width: 20,
+			arr: 'attack'
+		},
+		{
+			model: './assets/mage/go_1.png',
+			height: 20,
+			width: 20,
+			arr: 'go'
+		},
+		{
+			model: './assets/mage/go_2.png',
+			height: 20,
+			width: 20,
+			arr: 'go'
+		},
+		{
+			model: './assets/mage/jump.png',
+			height: 20,
+			width: 20,
+			arr: 'jump'
+		},
+		{
+			model: './assets/mage/stay.png',
+			height: 35,
+			width: 20,
+			arr: 'stay'
+		},
+		{
+			model: './assets/mage/summon.gif',
+			height: 40,
+			width: 35,
+			arr: 'summon'
+		},
+		{
+			model: './assets/mage/dead_1.png',
+			height: 20,
+			width: 20,
+			arr: 'dead'
+		},
+		{
+			model: './assets/mage/dead_2.png',
+			height: 20,
+			width: 20,
+			arr: 'dead'
+		},
+		{
+			model: './assets/mage/dead_3.png',
+			height: 20,
+			width: 20,
+			arr: 'dead'
+		},
+		{
+			model: './assets/mage/dead_4.png',
+			height: 20,
+			width: 20,
+			arr: 'dead'
+		},
 	].forEach(io => {
-		settings.gameAssets.MATE.model.app.push(loadImage(io));
+		settings.gameAssets.MAGE.models[io.arr].push({
+			model: loadImage(io.model),
+			height: io.height,
+			width: io.width
+		});
 	});
 
-		// -> attack
 	[
-		'./assets/mate/attack_1.png',
-		'./assets/mate/attack_2.png',
-		'./assets/mate/attack_3.png',
-		'./assets/mate/attack_4.png'
+		'./assets/electro/1.png',
+		'./assets/electro/2.png',
+		'./assets/electro/3.png',
+		'./assets/electro/4.png',
+		'./assets/electro/5.png',
+		'./assets/electro/6.png',
+		'./assets/electro/7.png',
+		'./assets/electro/8.png',
+		'./assets/electro/9.png',
+		'./assets/electro/10.png',
+		'./assets/electro/11.png',
+		'./assets/electro/12.png',
+		'./assets/electro/13.png',
+		'./assets/electro/14.png',
+		'./assets/electro/15.png',
+		'./assets/electro/16.png',
+		'./assets/electro/17.png',
+		'./assets/electro/18.png',
+		'./assets/electro/19.png',
+		'./assets/electro/20.png',
+		'./assets/electro/21.png',
+		'./assets/electro/22.png',
+		'./assets/electro/23.png',
+		'./assets/electro/24.png',
+		'./assets/electro/25.png',
+		'./assets/electro/26.png',
+		'./assets/electro/27.png',
+		'./assets/electro/28.png',
+		'./assets/electro/29.png',
+		'./assets/electro/30.png',
+		'./assets/electro/31.png',
+		'./assets/electro/32.png',
+		'./assets/electro/33.png',
+		'./assets/electro/34.png',
+		'./assets/electro/35.png',
+		'./assets/electro/36.png',
+		'./assets/electro/37.png',
+		'./assets/electro/38.png',
+		'./assets/electro/39.png',
+		'./assets/electro/40.png',
+		'./assets/electro/41.png',
+		'./assets/electro/42.png',
+		'./assets/electro/43.png',
+		'./assets/electro/44.png',
+		'./assets/electro/45.png',
+		'./assets/electro/46.png',
+		'./assets/electro/47.png',
+		'./assets/electro/48.png',
+		'./assets/electro/49.png',
+		'./assets/electro/50.png',
+		'./assets/electro/51.png',
+		'./assets/electro/52.png',
+		'./assets/electro/53.png',
+		'./assets/electro/54.png',
+		'./assets/electro/55.png',
+		'./assets/electro/56.png',
+		'./assets/electro/57.png',
+		'./assets/electro/58.png',
+		'./assets/electro/59.png',
+		'./assets/electro/60.png',
+		'./assets/electro/61.png',
+		'./assets/electro/62.png',
+		'./assets/electro/63.png'
 	].forEach(io => {
-		settings.gameAssets.MATE.model.
-	})
+		settings.gameAssets.ELECTRO.model.push(loadImage(io));
+	});
 
-	player.OBJECT = new Hero;
+	player.OBJECT = new Player;
 
-	// monsters.push(new Slime);
+	monsters.push(new Slime);
 	// monsters.push(new Lizard);
 	// monsters.push(new Gorilla);
 	// monsters.push(new Bird(++monstersID));
@@ -1885,7 +2344,7 @@ function setup() {
 	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_4.model, true, settings.gameAssets.ARMOR_4.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.HELMET.model, true, settings.gameAssets.HELMET.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id));
-	items.push(new Item(++itemsID, settings.gameAssets.MATE_SPAWNER.model, true, settings.gameAssets.MATE_SPAWNER.id));
+	items.push(new Item(++itemsID, settings.gameAssets.MAGE_SPAWNER.model, true, settings.gameAssets.MAGE_SPAWNER.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.METEOR_SUMMONER.model, true, settings.gameAssets.METEOR_SUMMONER.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.SHIELD_ITEM.model, true, settings.gameAssets.SHIELD_ITEM.id));
 
@@ -1977,8 +2436,9 @@ function draw() {
 		io.render().update().think();
 	});
 
-	mates.forEach(io => {
-		io.render().update().think();
+	mages.forEach(io => {
+		io.render().update().animate();
+		if(io.stable) io.think();
 	});
 	player.OBJECT.render().update().regenerate();
 }
