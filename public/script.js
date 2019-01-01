@@ -3,7 +3,7 @@
 /*
 	Monsters -> ground, air,
 	Lava,
-	Animations, End Animations, Damage light,
+	Animations, Damage light,
 	Mage,
 	Rages ( stronger monsters:
 		hp: x2,
@@ -27,13 +27,14 @@
 	mage (+)
 	monsters can't attack mage-fix (+)
 	mage -> use item. display armor (+)
-	story lines for items, monsters, hero (ex: Gorilla)
-	rave,
-	rage,
-	boss,
-	sounds,
-	menu -> play, controls, rules,
-	auto save => (if exit during action -> e-dialog), settings,
+	_1.1 : story lines for items, monsters, hero (ex: Gorilla) (+)
+	_1.8 : damage light
+	_1.2 : rave,
+	_1.3 : rage,
+	_1.4 : boss,
+	_1.5 : sounds,
+	_1.6 : menu -> play, controls, rules,
+	_1.7 : auto save => (if exit during action -> e-dialog), settings,
 
 	remove p5js library -> clear canvas
 */
@@ -1109,6 +1110,15 @@ class Player extends Hero {
 }
 
 class Mage extends Hero {
+	/*
+		Player's friend that always will come to the rescure if he asks. From the childhood he could to attract attention.
+		When a portal with monsters was opened he learned special spells. By teleporting a target,
+		he instantly throws it away from him.
+
+		+ Attract monster's attention.
+		- He can teleport only one monster.
+	*/
+
 	constructor(id, post) {
 		let a = settings.gameAssets.MAGE;
 
@@ -1652,6 +1662,10 @@ class Monster extends Creature {
 }
 
 class Slime extends Monster {
+	/*
+		A green clot of a radioactive substance from the another world.
+	*/
+
 	constructor() {
 		let a = settings.gameAssets.SLIME;
 
@@ -1721,6 +1735,11 @@ class Slime extends Monster {
 }
 
 class Lizard extends Monster {
+	/*
+		Fast shit that can kill you without any problems.
+		Takes a long distance from a target to could attack and protect itself.
+	*/
+
 	constructor() {
 		let a = settings.gameAssets.LIZARD,
 			b = 30; // size
@@ -1827,8 +1846,8 @@ class Lizard extends Monster {
 
 class Gorilla extends Monster {
 	/*
-	    Big and slow monster that learned how to use the Magnific Bombs and now can teleport you to himself.
-        Has a lot of HP, and can kill the hero without any help.
+	    Big and slow monster that learned how to use the Magnific Bombs and now can teleport you.
+        Has a lot of HP, and can kill a target without any help.
 	*/
 
 	constructor() {
@@ -1912,6 +1931,10 @@ class Gorilla extends Monster {
 }
 
 class Bird extends Element {
+	/*
+		Fast monster that looks like a bird drops a Magnific Bomb when a target is under him.
+	*/
+
 	constructor(id) {
 		let a = settings.gameAssets.BIRD,
 			b = [-1, 1][round(random(0, 1))];
