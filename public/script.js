@@ -24,8 +24,9 @@
 	fix gorilla bomb delta (+)
 	bomb (+)
 	bird (+)
-	mage
-	monsters can't attack mage-fix
+	mage (+)
+	monsters can't attack mage-fix (+)
+	mage -> use item. display armor (+)
 	story lines for items, monsters, hero (ex: Gorilla)
 	rave,
 	rage,
@@ -271,6 +272,7 @@ const settings = {
 }
 
 let player = {
+	id: 600,
 	models: {
 		idle: null,
 		run: null,
@@ -397,10 +399,12 @@ class Lava extends Element {
 }
 
 class Creature {
-	constructor(id = 0, race, pos, maxHealth, currentHealth, models, width, height, regenPower, damage, asl, speed, jh, maxJumps = 3, bulletRange = 0, bulletSpeed = 0) {
+	constructor(id = 0, race, pos, maxHealth, currentHealth, models, width, height, regenPower, damage, asl, speed, jh, maxJumps = 3, bulletRange = 0, bulletSpeed = 0, typenum) {
 		this.isAlive = true;
+
 		this.race = race;
 		this.id = id;
+		this.typenum = typenum;
 
 		this.models = models;
 		this.model = (this.models && this.models.idle) || this.models;
@@ -687,7 +691,7 @@ class Creature {
 
 	declareDamage(a) {
 		let { helmet: b, armor: c, shield: aa } = this.set,
-			d = () => (this.health <= 0) ? this.declareDeath(this.race) : null;
+			d = () => (this.health <= 0) ? this.declareDeath() : null;
 
 		if(aa) {
 			return;
@@ -744,20 +748,24 @@ class Creature {
 		}
 	}
 
-	declareDeath(entity = 'monster') {
+	declareDeath() {
 		this.isAlive = false;
 		this.health = 0;
 		this.set = {}
 
-		if(entity === 'hero') {
-			settings.inGame = false;
-			settings.canvas.target.style.filter = "grayscale(100%)";
-			/*
-				The p5.js library provides filter() function,
-				but it needs a lot of memory.
-				So, 'll' use CSS filter.
-			*/
-		} else if(entity === 'monster') {
+		if(this.race === 'hero') {
+			if(this.typenum === player.id) {
+				settings.inGame = false;
+				settings.canvas.target.style.filter = "grayscale(100%)";
+				/*
+					The p5.js library provides filter() function,
+					but it needs a lot of memory.
+					So, 'll' use CSS filter.
+				*/
+			} else if(this.typenum === settings.gameAssets.MAGE.id) {
+				this.die();
+			}
+		} else if(this.race === 'monster') {
 			let a = monsters;
 			a.splice(a.findIndex(io => io.id === this.id), 1);
 		}
@@ -967,7 +975,8 @@ class Player extends Hero {
 			9, // jh (Jump Height)
 			3, // maxJumps
 			player.bulletRange,
-			10
+			10,
+			player.id // typenum
 		);
 
 		// this.width = 21; // this.model.width -> 1?
@@ -1122,7 +1131,8 @@ class Mage extends Hero {
 			10, // jh
 			2, // mj
 			a.bulletRange,
-			a.bulletSpeed
+			a.bulletSpeed,
+			a.id
 		);
 
 		this.frame = 0;
@@ -1135,6 +1145,7 @@ class Mage extends Hero {
 		this.status = "app"; // app, attack, go, stay, jump, summon, dead
 
 		this.alive = a.alive;
+		this.dead = false;
 
 		this.shootAsl = a.shootDelta;
 		this.shootDelta = 0;
@@ -1164,6 +1175,22 @@ class Mage extends Hero {
 		this.width = a.width;
 
 		image(a.model, this.pos.x, this.pos.y, this.width, this.height);
+
+		if(!this.set.shield) {
+			// Draw the armor bar
+			if(this.set.armor) {
+				noStroke();
+				fill(15, 0, 255);
+				rect(0, 0, settings.canvas.width / 100 * (100 / (this.maxHealth / this.set.armor.health)), settings.playerHBHeight);
+			}
+
+			// Draw the helmet bar
+			if(this.set.helmet) {
+				noStroke();
+				fill(0, 255, 0);
+				rect(0, 0, settings.canvas.width / 100 * (100 / (this.maxHealth / this.set.helmet.health)), settings.playerHBHeight);
+			}
+		}
 
 		if(this.status !== 'app') {
 			let a = 12.5,
@@ -1203,14 +1230,40 @@ class Mage extends Hero {
 					a
 				);
 			}
+
+			if(!this.set.shield) {
+				// Draw the armor bar
+				if(this.set.armor) {
+					noStroke();
+					fill(15, 0, 255);
+					rect(
+						this.pos.x - d / 2 + c,
+						this.pos.y - 12.5,
+						d / 100 * (100 / (this.maxHealth / this.set.armor.health)),
+						b
+					);
+				}
+
+				// Draw the helmet bar
+				if(this.set.helmet) {
+					noStroke();
+					fill(0, 255, 0);
+					rect(
+						this.pos.x - d / 2 + c,
+						this.pos.y - 12.5,
+						d / 100 * (100 / (this.maxHealth / this.set.helmet.health)),
+						b
+					);
+				}
+			}
 		}
 
 		return this;
 	}
 
 	animate() {
-		if(--this.alive <= 0) {
-			return this.die();
+		if(!this.dead && --this.alive <= 0) {
+			this.die();
 		}
 
 		if(--this.shootDelta < 0) {
@@ -1228,9 +1281,13 @@ class Mage extends Hero {
 		}
 
 		if(--this.delay < 0) {
-			if(++this.frame > this.models[this.status].length - 1 && this.status === "app") {
-				this.status = 'summon';
-				this.stable = true;
+			if(++this.frame > this.models[this.status].length - 1) {
+				if(this.status === "app") {
+					this.status = 'summon';
+					this.stable = true;
+				} else if(this.status === "dead" && this.dead) {
+					mages.splice(mages.findIndex(io => io.id === this.id), 1);
+				}
 			}
 			if(this.frame > this.models[this.status].length - 1) {
 				this.frame = 0;
@@ -1352,10 +1409,13 @@ class Mage extends Hero {
 
 	die() {
 		if(this.target) {
-			this.target.isTarget = false;
-			this.target = null;
+			monsters.find(io => io.id === this.target.id).isTarget = false;
 		}
-		console.log("DIE");
+
+		this.dead = true;
+		this.delay = 5;
+		this.status = "dead";
+		this.frame = 0;
 	}
 }
 
@@ -1527,7 +1587,7 @@ class Bomb extends Element {
 }
 
 class Monster extends Creature {
-	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed, bulletRange, bulletSpeed, asl, jh, subType) {
+	constructor(health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed, bulletRange, bulletSpeed, asl, jh, subType, typenum) {
 		super(
 			++monstersID,
 			'monster',
@@ -1544,7 +1604,8 @@ class Monster extends Creature {
 			jh,
 			maxJumps,
 			bulletRange,
-			bulletSpeed
+			bulletSpeed,
+			typenum
 		);
 
 		this.type = subType;
@@ -1611,7 +1672,8 @@ class Slime extends Monster {
 			0,
 			a.attackDelta,
 			a.jumpHeight,
-			a.subType
+			a.subType,
+			a.id
 		);
 	}
 
@@ -1625,9 +1687,12 @@ class Slime extends Monster {
 			f = 5, // rangeY
 			d = a.pos.x + this.size / 2,
 			e = ( // REWRITE
-				d > b.x - c && d < b.x + this.size + c && // x
-				!(a.pos.y < b.y - f) && !(a.pos.y > b.y + this.size + f)
+				(this.pos.x > a.pos.x - c && this.pos.x < a.pos.x + a.width + c) &&
+				(this.pos.y > a.pos.y - c && this.pos.y < a.pos.y + a.height + c)
 			);
+
+			// d > b.x - c && d < b.x + this.size + c && // x
+			// !(a.pos.y < b.y - f) && !(a.pos.y > b.y + this.size + f)
 
 		if(a.pos.x !== this.pos.x && !e) {
 			this.movement = {
@@ -1636,15 +1701,10 @@ class Slime extends Monster {
 			}[a.pos.x > this.pos.x];
 		}
 
-		console.log((d > b.x - c, d < b.x + this.size + c), // x
-				(!(a.pos.y < b.y - f), !(a.pos.y > b.y + this.size + f)), this.aslDelta <= 0);
-		console.log(e);
-
 		if(e && this.aslDelta <= 0) this.attack();
 	}
 
 	attack() {
-		console.log("ATA");
 		this.jump();
 		this.aslDelta = this.asl;
 		(mages[0] || player.OBJECT).declareDamage(this.damage);
@@ -1682,7 +1742,8 @@ class Lizard extends Monster {
 			a.bulletSpeed, // bulletSpeed
 			a.attackDelta, // Bullet time restore
 			a.jumpHeight,
-			a.subType
+			a.subType,
+			a.id
 		);
 	}
 
@@ -1794,7 +1855,8 @@ class Gorilla extends Monster {
 				bomb: a.bombDelta
 			}, // attack time restore
 			a.jumpHeight,
-			a.subType
+			a.subType,
+			a.id
 		);
 	}
 
