@@ -30,12 +30,13 @@
 	_1.1 : story lines for items, monsters, hero (ex: Gorilla) (+)
 	_1.2 : rave (+),
 	_1.3 : rage (+),
-	_1.4 : boss --> till levels,
-	_1.5 : sounds,
+	_1.5 : sounds (+),
 	_1.6 : menu -> play, controls, rules,
 	_1.7 : auto save => (if exit during action -> e-dialog), settings,
 
 	remove p5js library -> clear canvas
+
+	multiplayer mode? Websocket.
 */
 
 /*
@@ -58,7 +59,7 @@ const settings = {
 		ravesTime: 35,
 		ravesTimeRange: 15
 	},
-	gameAssets: {
+	gameAssets: { // objects settings
 		BACKGROUND: {
 			type: "THEME",
 			model: null
@@ -273,6 +274,83 @@ const settings = {
 			alive: 1000 // dep frames
 		}
 	},
+	sounds: { // sound effects
+		ARMOR_GET: {
+			id: 160,
+			type: "SOUND",
+			audio: null
+		},
+		DIE: {
+			id: 161,
+			type: "SOUND",
+			audio: null
+		},
+		HIT: {
+			id: 162,
+			type: "SOUND",
+			audio: null
+		},
+		ITEM_GET: {
+			id: 163,
+			type: "SOUND",
+			audio: null
+		},
+		JUMP: {
+			id: 164,
+			type: "SOUND",
+			audio: null
+		},
+		MAGE_HIT: {
+			id: 165,
+			type: "SOUND",
+			audio: null
+		},
+		MAGE_SUMMON: {
+			id: 166,
+			type: "SOUND",
+			audio: null
+		},
+		METEOR: {
+			id: 167,
+			type: "SOUND",
+			audio: null
+		},
+		RAGE: {
+			id: 168,
+			type: "SOUND",
+			audio: null
+		},
+		RAVE: {
+			id: 169,
+			type: "SOUND",
+			audio: null
+		},
+		SELECT: { // null
+			id: 170,
+			type: "SOUND",
+			audio: null
+		},
+		SHOOT: {
+			id: 171,
+			type: "SOUND",
+			audio: null
+		},
+		START_LEVEL: {
+			id: 172,
+			type: "SOUND",
+			audio: null
+		},
+		TELEPORT: {
+			id: 173,
+			type: "SOUND",
+			audio: null
+		},
+		TEXT: {
+			id: 174,
+			type: "SOUND",
+			audio: null
+		}
+	},
 	itemKeys: [
 		70, 71,
 		66, 78
@@ -280,7 +358,7 @@ const settings = {
 }
 
 let player = {
-	id: 600,
+	id: 0,
 	models: {
 		idle: null,
 		run: null,
@@ -571,12 +649,14 @@ class Creature {
 				switch(xTest) {
 					case settings.gameAssets.HEALTH_BOTTLE.id:
 						xTestObject.destroy();
+						settings.sounds.ITEM_GET.audio.play();
 						this.health += settings.gameAssets.HEALTH_BOTTLE.health;
 						if(this.health > this.maxHealth) this.health = this.maxHealth;
 					break;
 					case settings.gameAssets.ARMOR_1.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
+							settings.sounds.ARMOR_GET.audio.play();
 							this.set.armor = {
 								name: "ARMOR_1",
 								health: settings.gameAssets.ARMOR_1.health
@@ -586,6 +666,7 @@ class Creature {
 					case settings.gameAssets.ARMOR_2.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
+							settings.sounds.ARMOR_GET.audio.play();
 							this.set.armor = {
 								name: "ARMOR_2",
 								health: settings.gameAssets.ARMOR_2.health
@@ -595,6 +676,7 @@ class Creature {
 					case settings.gameAssets.ARMOR_3.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
+							settings.sounds.ARMOR_GET.audio.play();
 							this.set.armor = {
 								name: "ARMOR_3",
 								health: settings.gameAssets.ARMOR_3.health
@@ -604,6 +686,7 @@ class Creature {
 					case settings.gameAssets.ARMOR_4.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
+							settings.sounds.ARMOR_GET.audio.play();
 							this.set.armor = {
 								name: "ARMOR_4",
 								health: settings.gameAssets.ARMOR_4.health
@@ -613,6 +696,7 @@ class Creature {
 					case settings.gameAssets.HELMET.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
+							settings.sounds.ARMOR_GET.audio.play();
 							this.set.helmet = {
 								name: "HELMET",
 								health: settings.gameAssets.HELMET.health
@@ -622,6 +706,7 @@ class Creature {
 					case settings.gameAssets.BOOTS.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
+							settings.sounds.ARMOR_GET.audio.play();
 							this.set.boots = {
 								name: "BOOTS",
 								speed: settings.gameAssets.BOOTS.speed,
@@ -632,6 +717,7 @@ class Creature {
 					case settings.gameAssets.SHIELD_ITEM.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
+							settings.sounds.ARMOR_GET.audio.play();
 							this.set.shield = {
 								name: "SHIELD_ITEM",
 								time: settings.gameAssets.SHIELD.time
@@ -641,12 +727,14 @@ class Creature {
 					case settings.gameAssets.MAGE_SPAWNER.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
+							settings.sounds.ITEM_GET.audio.play();
 							this.takeItem("MAGE_SPAWNER");
 						}
 					break;
 					case settings.gameAssets.METEOR_SUMMONER.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
+							settings.sounds.ITEM_GET.audio.play();
 							this.takeItem("METEOR_SUMMONER");
 						}
 					break;
@@ -763,8 +851,15 @@ class Creature {
 	}
 
 	jump(iterations = 1) {
+		let a = false;
+
 		for(let ma = 0; ma < iterations; ma++) {
 			if(!this.jumps) return;
+
+			if(!a) {
+				settings.sounds.JUMP.audio.play();
+				a = true;
+			}
 		
 			this.velocity = -this.jumpHeight;
 			if(this.strictJump) this.jumps--;
@@ -780,6 +875,7 @@ class Creature {
 			if(this.typenum === player.id) {
 				settings.inGame = false;
 				settings.canvas.target.style.filter = "grayscale(100%)";
+				settings.sounds.DIE.audio.play();
 				/*
 					The p5.js library provides filter() function,
 					but it needs a lot of memory.
@@ -954,6 +1050,7 @@ class Hero extends Creature {
 		switch(d) {
 			case settings.gameAssets.MAGE_SPAWNER.id: {
 				mages.push(new Mage(++magesID, this));
+				settings.sounds.MAGE_SUMMON.audio.play();
 			}
 			break;
 			case settings.gameAssets.METEOR_SUMMONER.id: {
@@ -963,6 +1060,7 @@ class Hero extends Creature {
 				e.height = 2;
 
 				meteors.push(new Meteor(++meteorsID, null, null, e));
+				settings.sounds.METEOR.audio.play();
 			}
 			break;
 			default:break;
@@ -1106,6 +1204,8 @@ class Player extends Hero {
 		if(!this.isAlive || this.aslDelta > 0) return;
 
 		this.aslDelta = this.asl;
+
+		settings.sounds.SHOOT.audio.play();
 
 		bullets.push(new Bullet(
 			++bulletsID, // id
@@ -1382,10 +1482,14 @@ class Mage extends Hero {
 		this.teleportDelta = this.teleportAsl;
 		this.target.pos = Object.assign({}, this.pos);
 
+		settings.sounds.TELEPORT.audio.play();
+
 		this.hit(); // force
 	}
 
 	shoot() {
+		settings.sounds.SHOOT.audio.play();
+
 		this.shootDelta = this.shootAsl;
 		bullets.push(new Bullet(
 			++bulletsID, // id
@@ -1411,12 +1515,15 @@ class Mage extends Hero {
 		this.hitting = true;
 		this.hitFrame = 0;
 
+		settings.sounds.MAGE_HIT.audio.play();
+
 		let a = settings.gameAssets.MAGE;
 
 		monsters.forEach(io => {
 			if(
 				(io.pos.x >= this.pos.x - a.hitRange && io.pos.x <= this.pos.x + this.width + a.hitRange) && // x
-				(io.pos.y >= this.pos.y - a.hitRange && io.pos.y <= this.pos.y + this.height + a.hitRange) // y
+				(io.pos.y >= this.pos.y - a.hitRange && io.pos.y <= this.pos.y + this.height + a.hitRange) && // y
+				io.type === "GROUND"
 			) {
 				if(io.pos.x < this.pos.x) {
 					io.pos.x -= 100;
@@ -1748,6 +1855,7 @@ window.Slime = class Slime extends Monster {
 	}
 
 	attack() {
+		settings.sounds.HIT.audio.play();
 		this.jump();
 		this.aslDelta = this.asl;
 		(mages[0] || player.OBJECT).declareDamage(this.damage);
@@ -1828,6 +1936,8 @@ window.Lizard = class Lizard extends Monster {
 	}
 
 	attack(player) {
+		settings.sounds.SHOOT.audio.play();
+
 		this.aslDelta = this.asl;
 		bullets.push(new Bullet(
 			++bulletsID, // id
@@ -1952,6 +2062,8 @@ window.Gorilla = class Gorilla extends Monster {
 	hit() {
 		let a = mages[0] || player.OBJECT;
 		this.aslDelta.hit = this.asl.hit;
+
+		settings.sounds.HIT.audio.play();
 
 		this.jump();
 		a.declareDamage(this.damage);
@@ -2165,13 +2277,10 @@ class Item extends Element {
 }
 
 function preload() {
+	// fonts
 	mainFont = loadFont('./assets/mainFont.ttf');
-}
 
-function setup() {
-	settings.canvas.target = createCanvas(settings.canvas.width, settings.canvas.height).elt;
-	frameRate(settings.canvas.FPS);
-
+	// models
 	settings.gameAssets.BACKGROUND.model       = loadImage('./assets/background.jpg');
 	settings.gameAssets.BLOCK.model            = loadImage('./assets/block.png');
 	settings.gameAssets.HEALTH_BOTTLE.model    = loadImage('./assets/items/heal.png');
@@ -2199,6 +2308,23 @@ function setup() {
 	player.models.run                          = loadImage('./assets/hero/run.gif');
 	player.models.jump                         = loadImage('./assets/hero/jump.png');
 	player.models.fly                          = loadImage('./assets/hero/fly.gif');
+	
+	// sounds
+	settings.sounds.ARMOR_GET.audio            = loadSound('./assets/sounds/armorget.wav');
+	settings.sounds.DIE.audio                  = loadSound('./assets/sounds/dead.wav');
+	settings.sounds.HIT.audio                  = loadSound('./assets/sounds/hit.wav');
+	settings.sounds.ITEM_GET.audio             = loadSound('./assets/sounds/itemget.wav');
+	settings.sounds.JUMP.audio                 = loadSound('./assets/sounds/jump.wav');
+	settings.sounds.MAGE_HIT.audio             = loadSound('./assets/sounds/mage_hit.wav');
+	settings.sounds.MAGE_SUMMON.audio          = loadSound('./assets/sounds/magesummon.wav');
+	settings.sounds.METEOR.audio               = loadSound('./assets/sounds/meteor.wav');
+	settings.sounds.RAGE.audio                 = loadSound('./assets/sounds/rage.wav');
+	settings.sounds.RAVE.audio                 = loadSound('./assets/sounds/rave.wav');
+	settings.sounds.SELECT.audio               = loadSound('./assets/sounds/select.wav');
+	settings.sounds.SHOOT.audio                = loadSound('./assets/sounds/shoot.wav');
+	settings.sounds.START_LEVEL.audio          = loadSound('./assets/sounds/start_level.wav');
+	settings.sounds.TELEPORT.audio             = loadSound('./assets/sounds/teleport.wav');
+	settings.sounds.TEXT.audio                 = loadSound('./assets/sounds/text.wav');
 
 	// Lava models
 	[
@@ -2442,6 +2568,11 @@ function setup() {
 	].forEach(io => {
 		settings.gameAssets.ELECTRO.model.push(loadImage(io));
 	});
+}
+
+function setup() {
+	settings.canvas.target = createCanvas(settings.canvas.width, settings.canvas.height).elt;
+	frameRate(settings.canvas.FPS);	
 
 	player.OBJECT = new Player;
 
@@ -2473,11 +2604,17 @@ function draw() {
 	if(session.startTime) {
 		session.startTime--;
 
+		let a = a => round(session.startTime / (settings.canvas.FPS - a));
+
+		if(a(0) !== a(1)) {
+			settings.sounds.TEXT.audio.play();
+		}
+
 		textFont(mainFont);
 		textSize(64);
 		textAlign(CENTER);
 		fill(245);
-		text(`STARTING IN: ${ round(session.startTime / settings.canvas.FPS) }`, settings.canvas.width / 2, settings.playerHBHeight + 75);
+		text(`STARTING IN: ${ a(0) }`, settings.canvas.width / 2, settings.playerHBHeight + 75);
 	}
 
 	// Rave
@@ -2486,7 +2623,10 @@ function draw() {
 			session.ravesTi = null; // NO raves on this level.
 		}
 
-		session.isRave = true;
+		if(!session.isRave) {
+			settings.sounds.RAVE.audio.play();
+			session.isRave = true;
+		}
 	}
 
 	if(!session.startTime && session.isRave && --session.raveEnd) {
@@ -2516,7 +2656,10 @@ function draw() {
 			session.ragesTi = null;
 		}
 
-		session.isRage = true;
+		if(!session.isRage) {
+			settings.sounds.RAGE.audio.play();
+			session.isRage = true;
+		}
 	}
 
 	if(!session.startTime && session.isRage && --session.rageEnd) {
