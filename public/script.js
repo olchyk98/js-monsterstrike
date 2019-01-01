@@ -34,19 +34,14 @@
 	_1.5 : sounds (+),
 	_1.6 : menu -> single, multi (+/x2),
 	_1.6.01 : add func route to single (+),
-	_1.7 : auto save => (if exit during action -> e-dialog), settings,
 	_1.8 : Generate random map (use alg!)
-
-	remove p5js library -> clear canvas (?) -- test performance
-
-	multiplayer mode? Websockets.
+	_1.9 : Migrate to vanilla canvas
+	_2.0 : Multiplayer mode (Websockets)
 */
 
-/*
-	
+/*	
 	-- PERFORMANCE --
 	VOID: Mage -> run, jump, attack
-
 */
 
 const settings = {
