@@ -28,9 +28,9 @@
 	monsters can't attack mage-fix (+)
 	mage -> display armor (+)
 	_1.1 : story lines for items, monsters, hero (ex: Gorilla) (+)
-	_1.2 : rave,
-	_1.3 : rage,
-	_1.4 : boss,
+	_1.2 : rave (+),
+	_1.3 : rage (+),
+	_1.4 : boss --> till levels,
 	_1.5 : sounds,
 	_1.6 : menu -> play, controls, rules,
 	_1.7 : auto save => (if exit during action -> e-dialog), settings,
@@ -1617,6 +1617,14 @@ class Monster extends Creature {
 	constructor(id, health, model, regen = 1, pos, damage = 10, size, maxJumps, minSpeed, maxSpeed, bulletRange, bulletSpeed, asl, jh, subType, typenum) {
 		let a = (!session.isRage) ? 1 : 2;
 
+		if(typeof asl !== "object") {
+			asl *= a;
+		} else {
+			Object.keys(asl).forEach(io => {
+				asl[io] = asl[io] * a;
+			});
+		}
+
 		super(
 			id,
 			'monster',
@@ -1628,7 +1636,7 @@ class Monster extends Creature {
 			size,
 			regen * a,
 			damage * a,
-			asl / a,
+			asl,
 			random(minSpeed * a, maxSpeed * a),
 			jh,
 			maxJumps,
@@ -1927,8 +1935,7 @@ window.Gorilla = class Gorilla extends Monster {
 		}
 	}
 
-	spawnBomb(a, b) { // funkar inte
-		console.log("A");
+	spawnBomb(a, b) {
 		this.aslDelta.bomb = this.asl.bomb;
 
 		bombs.push(new Bomb(
@@ -2575,7 +2582,7 @@ function draw() {
 		textAlign(CENTER);
 		fill(255);
 		text('YOU DIED!', settings.canvas.width / 2, settings.canvas.height / 2 + 20);
-		// noLoop();
+		noLoop();
 	}
 
 	touchableElements = [];
