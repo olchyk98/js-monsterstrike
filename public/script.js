@@ -35,6 +35,7 @@
 	_1.6 : menu -> single, multi,
 	_1.6.01 : add func route to single,
 	_1.7 : auto save => (if exit during action -> e-dialog), settings,
+	_1.8 : Generate random map (use alg!)
 
 	remove p5js library -> clear canvas (?) -- test performance
 
