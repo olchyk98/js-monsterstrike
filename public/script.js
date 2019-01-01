@@ -32,8 +32,8 @@
 	_1.2 : rave (+),
 	_1.3 : rage (+),
 	_1.5 : sounds (+),
-	_1.6 : menu -> single, multi,
-	_1.6.01 : add func route to single,
+	_1.6 : menu -> single, multi (+/x2),
+	_1.6.01 : add func route to single (+),
 	_1.7 : auto save => (if exit during action -> e-dialog), settings,
 	_1.8 : Generate random map (use alg!)
 
@@ -414,7 +414,9 @@ let player = {
 
 	touchableElements = [],
 
-	session = {
+	defaultSession = {
+		isMultiplayer: false,
+
 		startTime: settings.canvas.FPS * 5, // 5s
 		monsterMinTime: settings.canvas.FPS, // 1s
 		monsterMaxTime: settings.canvas.FPS * 3, // 3s
@@ -429,7 +431,8 @@ let player = {
 		rageDelta: Math.floor(Math.random() * 4000),
 		rageEnd: 1200,
 		ragesTi: Infinity, // null
-	}
+	},
+	session = Object.assign({}, defaultSession);
 
 // 0 - void
 // 1 - block
@@ -444,6 +447,29 @@ const map = [
 	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
+
+function start(a) {
+	settings.canvas.target.style.cursor = "default";
+
+	session = Object.assign({}, defaultSession);
+
+	settings.inGame = true;
+	settings.inMenu = false;
+	session.isMultiplayer = a;
+
+	monsters.length = monstersID =
+	bullets.length = bulletsID =
+	meteors.length = meteorsID =
+	bombs.length = bombsID =
+	mages.length = magesID =
+	items.length = itemsID = 0;
+
+	itemsRefresh = {
+		started: false,
+		wait: 0,
+		delta: 0
+	}
+}
 
 class Element {
 	constructor(isBlock = false, leftIndex = -1, bottomIndex = -1, typenum, id = 0) {
@@ -2629,7 +2655,7 @@ function draw() {
 			{ // Deathmatch mode
 				title: "Deathmatch",
 				onClick: () => {
-					console.log("RUN GAME");
+					start(false);
 				}
 			},
 			{ // Multiplayer mode
@@ -2907,9 +2933,13 @@ function mouseMoved() {
 }
 
 function mousePressed() {
-	settings.menuMouseClick = {
-		x: mouseX,
-		y: mouseY
+	if(settings.inMenu) {
+		settings.menuMouseClick = {
+			x: mouseX,
+			y: mouseY
+		}
+	} else if(!settings.inMenu && !settings.inGame) {
+		start(session.isMultiplayer);
 	}
 }
 
