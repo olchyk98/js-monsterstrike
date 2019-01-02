@@ -18,7 +18,7 @@
 	Menu,
 	Save Game / Restore Game (Local Storage).
 
-	//
+	///
 	meteor (+),
 	shield (+),
 	gorilla (+),
