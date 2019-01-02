@@ -34,8 +34,12 @@
 	_1.5 : sounds (+),
 	_1.6 : menu -> single, multi (+/x2),
 	_1.6.01 : add func route to single (+),
-	_1.7 : score system,
-	_1.71 : iterations score,
+	_1.7 : score system (+),
+	_1.71 : iterations score (+),
+	_1.71.1 : plus score key item (monsters can eat) (+),
+	_1.71.2 : score up sound (+),
+	_1.71.25 : fix outscreen meteour
+	_1.71.3 : single! console cheats w& chTesting:true
 	_1.72 : mute sounds/music,
 	_1.->75 : fix restart game (+),
 	_1.8 : Generate random map (use alg!),
@@ -49,6 +53,8 @@
 */
 
 const settings = {
+	devTesting: false,
+	chTesting: false,
 	canvas: {
 		height: 445, // 445
 		width: 850, // 800 - 850
@@ -149,6 +155,18 @@ const settings = {
 			type: "ITEM",
 			model: null
 		},
+		GOLD_KEY: {
+			id: 30,
+			type: "ITEM",
+			score: 1000,
+			model: null
+		},
+		SILVER_KEY: {
+			id: 31,
+			type: "ITEM",
+			score: 500,
+			model: null
+		},
 		METEOR: {
 			id: 50,
 			type: "OBJECT",
@@ -234,7 +252,7 @@ const settings = {
 			maxJumps: 1,
 			jumpHeight: 5,
 			bombRange: 400,
-			bombTime: 200,
+			bombTime: 100,
 			bombDamage: 20
 		},
 		BIRD: {
@@ -364,6 +382,16 @@ const settings = {
 			id: 174,
 			type: "SOUND",
 			audio: null
+		},
+		SELECT: {
+			id: 175,
+			type: "SOUND",
+			audio: null
+		},
+		SCOREUP: {
+			id: 176,
+			type: "SOUND",
+			audio: null
 		}
 	},
 	music: { // gameplay background music
@@ -438,7 +466,16 @@ let player = {
 		rageEnd: Math.floor(Math.random() * (2000 - 400) + 400),
 		ragesTi: Infinity, // null
 	},
-	session = null;
+	session = null,
+
+	score = {
+		iterations: 0,
+		score: 0
+	},
+	scoreDef = {
+		MONSTER_KILL: 200,
+		LAVA_DEATH: 25
+	}
 
 // 0 - void
 // 1 - block
@@ -459,10 +496,15 @@ function playSound(sound) {
 }
 
 function start(a, playSong = false) { // move to the setup function
+	if(settings.devTesting) playSong = false;
+
 	settings.canvas.target.style = `
 		cursor:default;
 		filter:inherit;
 	`;
+
+	// New iteration
+	score.iterations++;
 
 	// Setup session
 	session = Object.assign({}, defaultSession);
@@ -494,6 +536,29 @@ function start(a, playSong = false) { // move to the setup function
 		let b = Object.values(settings.music).map(({ audio }) => audio);
 		b[floor(random(b.length))].play();
 	}
+
+	// DEV
+
+	// monsters.push(new Slime(++monstersID, true));
+	// monsters.push(new Lizard(++monstersID, true));
+	// monsters.push(new Gorilla(++monstersID, true));
+	// monsters.push(new Bird(++monstersID, true));
+
+	// items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_2.model, true, settings.gameAssets.ARMOR_2.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_3.model, true, settings.gameAssets.ARMOR_3.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_4.model, true, settings.gameAssets.ARMOR_4.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.HELMET.model, true, settings.gameAssets.HELMET.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.MAGE_SPAWNER.model, true, settings.gameAssets.MAGE_SPAWNER.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.METEOR_SUMMONER.model, true, settings.gameAssets.METEOR_SUMMONER.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.SHIELD_ITEM.model, true, settings.gameAssets.SHIELD_ITEM.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.SILVER_KEY.model, true, settings.gameAssets.SILVER_KEY.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.GOLD_KEY.model, true, settings.gameAssets.GOLD_KEY.id));
+
+	// bombs.push(new Bomb(++bombsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombTime, null, true, 'red'));
+	// meteors.push(new Meteor(++meteorsID, player.OBJECT.pos));
 }
 
 class Element {
@@ -656,6 +721,7 @@ class Creature {
 		let testYPassed = true,
 			testXPassed = true,
 			damage = 0,
+			lastDamagerID = -1,
 			speed = this.speed + ((this.set.boots && this.set.boots.speed) || 1);
 
 		// Test y
@@ -689,6 +755,7 @@ class Creature {
 			if([xTest, yTest].includes(1) || [xTest, yTest].includes(2)) { // if magerial is block or lava
 				if([xTest, yTest].includes(2)) {
 					if(!damage) damage += 10;
+					lastDamagerID = xTest;
 					if(this.race === 'hero') this.jumps = 0;
 				} else {
 					this.jumps = this.maxJumps;
@@ -731,8 +798,8 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.ARMOR_2.id:
-						xTestObject.destroy();
 						if(this.race === 'hero') {
+							xTestObject.destroy();
 							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.armor = {
 								name: "ARMOR_2",
@@ -741,8 +808,8 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.ARMOR_3.id:
-						xTestObject.destroy();
 						if(this.race === 'hero') {
+							xTestObject.destroy();
 							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.armor = {
 								name: "ARMOR_3",
@@ -751,8 +818,8 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.ARMOR_4.id:
-						xTestObject.destroy();
 						if(this.race === 'hero') {
+							xTestObject.destroy();
 							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.armor = {
 								name: "ARMOR_4",
@@ -761,8 +828,8 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.HELMET.id:
-						xTestObject.destroy();
 						if(this.race === 'hero') {
+							xTestObject.destroy();
 							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.helmet = {
 								name: "HELMET",
@@ -771,8 +838,8 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.BOOTS.id:
-						xTestObject.destroy();
 						if(this.race === 'hero') {
+							xTestObject.destroy();
 							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.boots = {
 								name: "BOOTS",
@@ -782,8 +849,8 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.SHIELD_ITEM.id:
-						xTestObject.destroy();
 						if(this.race === 'hero') {
+							xTestObject.destroy();
 							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.shield = {
 								name: "SHIELD_ITEM",
@@ -792,17 +859,28 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.MAGE_SPAWNER.id:
-						xTestObject.destroy();
 						if(this.race === 'hero') {
+							xTestObject.destroy();
 							playSound(settings.sounds.ITEM_GET.audio);
 							this.takeItem("MAGE_SPAWNER");
 						}
 					break;
 					case settings.gameAssets.METEOR_SUMMONER.id:
-						xTestObject.destroy();
 						if(this.race === 'hero') {
+							xTestObject.destroy();
 							playSound(settings.sounds.ITEM_GET.audio);
 							this.takeItem("METEOR_SUMMONER");
+						}
+					break;
+					case settings.gameAssets.GOLD_KEY.id:
+					case settings.gameAssets.SILVER_KEY.id:
+						xTestObject.destroy(); // monsters can eat it
+						if(this.race === 'hero' && this.typenum === player.id) {
+							if(xTestObject.type === settings.gameAssets.GOLD_KEY.id) {
+								this.pushScore(settings.gameAssets.GOLD_KEY.score);
+							} else if(xTestObject.type === settings.gameAssets.SILVER_KEY.id) {
+								this.pushScore(settings.gameAssets.SILVER_KEY.score);
+							}
 						}
 					break;
 					case settings.gameAssets.HERO_BULLET.id:
@@ -810,17 +888,20 @@ class Creature {
 						if(this.race !== 'hero') {
 							xTestObject.destroy();
 							damage += xTestObject.damage;
+							lastDamagerID = settings.gameAssets.MAGE_BULLET.id;
 						}
 					break;
 					case settings.gameAssets.LIZARD_BULLET.id:
 						if(this.race !== 'monster') {
 							xTestObject.destroy();
 							damage += xTestObject.damage;
+							lastDamagerID = settings.gameAssets.LIZARD_BULLET.id;
 						}
 					break;
 					case settings.gameAssets.METEOR.id:
 						if(this.race !== 'hero') {
 							damage += xTestObject.damage;
+							lastDamagerID = settings.gameAssets.METEOR.id;
 						}
 					break;
 					default:break;
@@ -828,7 +909,7 @@ class Creature {
 			}
 		});
 
-		this.declareDamage(damage);
+		this.declareDamage(damage, lastDamagerID);
 
 		this.velocity += this.gravity;
 		if(testYPassed) {
@@ -868,9 +949,9 @@ class Creature {
 		return this;
 	}
 
-	declareDamage(a) {
+	declareDamage(a, host) {
 		let { helmet: b, armor: c, shield: aa } = this.set,
-			d = () => (this.health <= 0) ? this.declareDeath() : null;
+			d = d => (this.health <= 0) ? this.declareDeath(d) : null;
 
 		if(aa) {
 			return;
@@ -882,7 +963,7 @@ class Creature {
 				delete this.set.helmet;
 			} else {
 				this.health -= a -= b.health;
-				d();
+				d(host);
 				delete this.set.helmet;
 			}
 		} else if(c) {
@@ -893,12 +974,12 @@ class Creature {
 				delete this.set.armor;
 			} else {
 				this.health -= a -= c.health;
-				d();
+				d(host);
 				delete this.set.armor;
 			}
 		} else {
 			this.health -= a;
-			d();
+			d(host);
 		}
 	}
 
@@ -933,7 +1014,7 @@ class Creature {
 		}
 	}
 
-	declareDeath() {
+	declareDeath(host) {
 		this.isAlive = false;
 		this.health = 0;
 		this.set = {}
@@ -954,6 +1035,14 @@ class Creature {
 		} else if(this.race === 'monster') {
 			let a = monsters;
 			a.splice(a.findIndex(io => io.id === this.id), 1);
+			if([
+				settings.gameAssets.MAGE_BULLET.id,
+				settings.gameAssets.METEOR.id
+			].includes(host)) {
+				player.OBJECT.pushScore(scoreDef.MONSTER_KILL);
+			} else if(host === settings.gameAssets.LAVA.id) {
+				player.OBJECT.pushScore(-scoreDef.LAVA_DEATH);
+			}
 		}
 	}
 }
@@ -1297,6 +1386,15 @@ class Player extends Hero {
 			this.bulletSpeed, // speed
 			this.bulletRange // rangeX
 		));
+	}
+
+	pushScore(a) {
+		let b = score;
+		b.score += a;
+
+		playSound(settings.sounds.SCOREUP.audio);
+
+		if(b.score < 0) b.score = 0;
 	}
 }
 
@@ -2269,6 +2367,7 @@ window.Bird = class Bird extends Element {
 	}
 
 	kill() {
+		player.OBJECT.pushScore(scoreDef.MONSTER_KILL);
 		monsters.splice(monsters.findIndex(io => io.id === this.id), 1);
 	}
 }
@@ -2371,6 +2470,9 @@ function preload() {
 	settings.gameAssets.HELMET.model           = loadImage('./assets/items/helm.png');
 	settings.gameAssets.MAGE_SPAWNER.model     = loadImage('./assets/items/mageSpawner.png');
 	settings.gameAssets.SHIELD_ITEM.model      = loadImage('./assets/items/shield.png');
+	settings.gameAssets.GOLD_KEY.model         = loadImage('./assets/items/goldkey.png')
+	settings.gameAssets.SILVER_KEY.model       = loadImage('./assets/items/silverkey.png')
+
 	settings.gameAssets.SHIELD.model           = loadImage('./assets/items/shieldEffect.png');
 	settings.gameAssets.METEOR_SUMMONER.model  = loadImage('./assets/items/sMeteor.png');
 	settings.gameAssets.METEOR.model           = loadImage('./assets/items/meteor.png');
@@ -2400,6 +2502,8 @@ function preload() {
 	settings.sounds.START_LEVEL.audio          = loadSound('./assets/sounds/start_level.wav');
 	settings.sounds.TELEPORT.audio             = loadSound('./assets/sounds/teleport.wav');
 	settings.sounds.TEXT.audio                 = loadSound('./assets/sounds/text.wav');
+	settings.sounds.SELECT.audio               = loadSound('./assets/sounds/select.wav');
+	settings.sounds.SCOREUP.audio              = loadSound('./assets/sounds/scoreup.wav');
 
 	// songs
 	settings.music.UNDERTALE.audio             = loadSound('./assets/music/undertale.mp3');
@@ -2651,25 +2755,6 @@ function preload() {
 function setup() {
 	settings.canvas.target = createCanvas(settings.canvas.width, settings.canvas.height).elt;
 	frameRate(settings.canvas.FPS);	
-
-	// monsters.push(new Slime(++monstersID, true));
-	// monsters.push(new Lizard(++monstersID, true));
-	// monsters.push(new Gorilla(++monstersID, true));
-	// monsters.push(new Bird(++monstersID, true));
-
-	// items.push(new Item(++itemsID, settings.gameAssets.HEALTH_BOTTLE.model, true, settings.gameAssets.HEALTH_BOTTLE.id));
-	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_1.model, true, settings.gameAssets.ARMOR_1.id));
-	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_2.model, true, settings.gameAssets.ARMOR_2.id));
-	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_3.model, true, settings.gameAssets.ARMOR_3.id));
-	// items.push(new Item(++itemsID, settings.gameAssets.ARMOR_4.model, true, settings.gameAssets.ARMOR_4.id));
-	// items.push(new Item(++itemsID, settings.gameAssets.HELMET.model, true, settings.gameAssets.HELMET.id));
-	// items.push(new Item(++itemsID, settings.gameAssets.BOOTS.model, true, settings.gameAssets.BOOTS.id));
-	// items.push(new Item(++itemsID, settings.gameAssets.MAGE_SPAWNER.model, true, settings.gameAssets.MAGE_SPAWNER.id));
-	// items.push(new Item(++itemsID, settings.gameAssets.METEOR_SUMMONER.model, true, settings.gameAssets.METEOR_SUMMONER.id));
-	// items.push(new Item(++itemsID, settings.gameAssets.SHIELD_ITEM.model, true, settings.gameAssets.SHIELD_ITEM.id));
-
-	// bombs.push(new Bomb(++bombsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombTime, null, true, 'red'));
-	// meteors.push(new Meteor(++meteorsID, player.OBJECT.pos));
 }
 
 function draw() {
@@ -2690,6 +2775,7 @@ function draw() {
 				color: "#92CD41",
 				onClick: () => {
 					start(false, true);
+					playSound(settings.sounds.SELECT.audio);
 				}
 			},
 			{ // Multiplayer mode
@@ -2769,6 +2855,25 @@ function draw() {
 		// Background
 		image(settings.gameAssets.BACKGROUND.model, 0, 0, settings.canvas.width, settings.canvas.height);
 
+		// Draw score and iterations
+		textFont(mainFont);
+		textSize(24);
+		textAlign(CENTER);
+		fill(245);
+		{
+			let a = score.iterations.toString(),
+				b = {
+				1: 'st',
+				2: 'nd',
+				3: 'rd'
+			}[a.slice(-1)] || 'th';
+			text(
+				`${ score.score } (${ a + b } iteration)`,
+				settings.canvas.width / 2,
+				settings.playerHBHeight + 20
+			);
+		}
+
 		// Draw start time
 		if(session.startTime) {
 			session.startTime--;
@@ -2787,7 +2892,7 @@ function draw() {
 		}
 
 		// Rave
-		if(session.ravesTi && --session.raveDelta <= 0) {
+		if(!settings.devTesting && session.ravesTi && --session.raveDelta <= 0) {
 			defaultSession.raveDelta = random(4000);
 			defaultSession.raveEnd = random(400, 2000);
 			session.raveDelta = defaultSession.raveDelta;
@@ -2798,17 +2903,12 @@ function draw() {
 			}
 
 			if(!session.isRave) {
-				console.log({
-					status: "RAVE_PLAY",
-					raveDelta: session.raveDelta,
-					raveEnd: session.raveEnd
-				});
 				playSound(settings.sounds.RAVE.audio);
 				session.isRave = true;
 			}
 		}
 
-		if(!session.startTime && session.isRave && --session.raveEnd) {
+		if(!settings.devTesting && !session.startTime && session.isRave && --session.raveEnd) {
 			let a = a => floor(session.raveEnd % a),
 				b = '';
 
@@ -2830,7 +2930,7 @@ function draw() {
 		}
 
 		// Rage
-		if(session.ragesTi && --session.rageDelta <= 0) {
+		if(!settings.devTesting && session.ragesTi && --session.rageDelta <= 0) {
 			defaultSession.raveDelta = random(3000);
 			defaultSession.raveEnd = random(600, 1400);
 			session.raveDelta = defaultSession.raveDelta;
@@ -2844,17 +2944,12 @@ function draw() {
 			}
 
 			if(!session.isRage) {
-				console.log({
-					status: "RAVE_PLAY",
-					raveDelta: session.raveDelta,
-					raveEnd: session.raveEnd
-				});
 				playSound(settings.sounds.RAGE.audio);
 				session.isRage = true;
 			}
 		}
 
-		if(!session.startTime && session.isRage && --session.rageEnd) {
+		if(!settings.devTesting && !session.startTime && session.isRage && --session.rageEnd) {
 			let a = a => session.rageEnd % a,
 				b = '';
 
@@ -2876,7 +2971,7 @@ function draw() {
 		}
 
 		// Spawn Monster
-		if(!session.startTime && settings.inGame && --session.monsterDelta <= 0) { // spawn new monster
+		if(!settings.devTesting && !session.startTime && settings.inGame && --session.monsterDelta <= 0) { // spawn new monster
 			session.monsterDelta = (!session.isRave) ? ( // reload monster delta
 				random(session.monsterMinTime, session.monsterMaxTime)
 			) : (
