@@ -39,11 +39,12 @@
 	_1.71.1 : plus score key item (monsters can eat) (+),
 	_1.71.2 : score up sound (+),
 	_1.71.25 : fix outscreen meteour (+),
-	_1.71.3 : single! console cheats w& chTesting:true,
+	_1.71.3 : single! console cheats w& chTesting:true (+),
 	_1.72 : mute sounds/music (+),
-	_1.73 : mute localstorage auto save and restore,
+	_1.73 : mute status to localstorage, auto save and restore (+),
 	_1.->75 : fix restart game (+),
-	_1.8 : Generate random map (use alg!),
+	_1.8 : Add maps (+),
+	_1.8.1 : Add recomendations and informations -> maps
 	_2.0 : Multiplayer mode (Websockets),
 	_2.1 : Migrate to vanilla canvas -> loading progress bar (just create p5js functions again)
 */
@@ -58,15 +59,18 @@
 	Assets:
 		https://thenounproject.com/term/speaker/170040/ -> By Dileep M, IN
 		https://thenounproject.com/term/headphones/191628/ -> By Universal Icons, US
+		https://thenounproject.com/search/?q=hook&i=1906404 -> By Hassan ali, PK 
 		https://itch.io/
 		https://opengameart.org/
 */
 
-const settings = {
-	devTesting: false,
-	chTesting: false,
+let settings = {
+	devTesting: false, // Don't load hard stuff (monsters, music...)
+	chTesting: false, // Turn on cheats
+	gmTesting: false, // Start game after canvas loading
 	musicOn: true,
 	soundsOn: true,
+	playerCanHook: false,
 	canvas: {
 		height: 445, // 445
 		width: 850, // 800 - 850
@@ -109,13 +113,20 @@ const settings = {
 		},
 		BLOCK: {
 			id: 1,
+			markupID: 1,
 			type: "BLOCK",
 			model: null
 		},
 		LAVA: {
 			id: 2,
+			markupID: 2,
 			type: "BLOCK",
 			model: []
+		},
+		GLASS: {
+			markupID: 3,
+			type: "TEXTURE",
+			model: null
 		},
 		ARMOR_1: {
 			id: 20,
@@ -187,6 +198,12 @@ const settings = {
 			id: 31,
 			type: "ITEM",
 			score: 500,
+			model: null
+		},
+		BRONZE_KEY: {
+			id: 32,
+			type: "ITEM",
+			score: 250,
 			model: null
 		},
 		METEOR: {
@@ -443,6 +460,11 @@ const settings = {
 			id: 240,
 			type: "ICON",
 			image: null
+		},
+		HOOK_ICON: {
+			id: 241,
+			type: "ICON",
+			image: null
 		}
 	},
 	itemKeys: [
@@ -465,7 +487,8 @@ let player = {
 	damage: 10,
 	minSpeed: 4.5,
 	maxSpeed: 5,
-	bulletRange: settings.canvas.width * .75
+	bulletRange: settings.canvas.width * .75,
+	canHook: false
 },
 	monsters = [],
 	monstersID = 0,
@@ -525,16 +548,61 @@ let player = {
 // 0 - void
 // 1 - block
 // 2 - lava
-const map = [
-	[0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+// 3 - glass
+const maps = [ // 5 maps
+	[ // 1. Direct
+		[0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+	],
+	[ // 2. Cosvidel
+		[0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+		[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+		[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+	],
+	[ // 3. Crash
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0],
+		[0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0],
+		[1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+		[2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+	],
+	[ // 4. Crazy Piramid
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0],
+		[0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 1, 1, 2, 1, 1, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 1, 1, 3, 1, 1, 2, 1, 1, 3, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 1, 1, 2, 1, 1, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+		[1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 2, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+	],
+	[ // 5. 23 June
+		[0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 2, 2, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 2, 2, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+		[1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 2, 2, 2, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+		[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+	]
 ];
+
+let map = [];
 
 function playSound(sound) {
 	if(!settings.soundsOn) return;
@@ -587,6 +655,12 @@ function start(a, playSong = false) { // move to the setup function
 		session.currentSong = c;
 	}
 
+	// Get random map
+	{
+		let a = maps;
+		map = a[floor(random(a.length))];
+	}
+
 	// DEV
 
 	// monsters.push(new Slime(++monstersID, true));
@@ -604,11 +678,20 @@ function start(a, playSong = false) { // move to the setup function
 	// items.push(new Item(++itemsID, settings.gameAssets.MAGE_SPAWNER.model, true, settings.gameAssets.MAGE_SPAWNER.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.METEOR_SUMMONER.model, true, settings.gameAssets.METEOR_SUMMONER.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.SHIELD_ITEM.model, true, settings.gameAssets.SHIELD_ITEM.id));
+	// items.push(new Item(++itemsID, settings.gameAssets.BRONZE_KEY.model, true, settings.gameAssets.BRONZE_KEY.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.SILVER_KEY.model, true, settings.gameAssets.SILVER_KEY.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.GOLD_KEY.model, true, settings.gameAssets.GOLD_KEY.id));
 
 	// bombs.push(new Bomb(++bombsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombTime, null, true, 'red'));
 	// meteors.push(new Meteor(++meteorsID, player.OBJECT.pos));
+}
+
+function updateLocalStorage() {
+	localStorage.setItem("GLOBAL_SETTINGS", JSON.stringify({
+		musicOn: settings.musicOn,
+		soundsOn: settings.soundsOn,
+		playerCanHook: settings.playerCanHook
+	}));
 }
 
 // Cheats
@@ -713,6 +796,16 @@ if(settings.chTesting) {
 			player.OBJECT.pushScore(score);
 		}
 	}
+} else {
+	window.___SPAWNITEM = window.___SPAWNITEMS =
+	window.___SPAWNMONSTER = window.___MANYHEALTH =
+	window.___MUTESONG = window.___MUTESOUND =
+	window.___STARTRAVE = window.___STOPRAVE =
+	window.___STARTRAGE = window.___STOPRAGE =
+	window.___NEXTITERATION = window.___PUSHSCORE =
+	function() {
+		return console.warn("Cheats are not available when chTesting constant equals false.");
+	}
 }
 
 class Element {
@@ -750,12 +843,14 @@ class Element {
 }
 
 class Block extends Element {
-	constructor(leftIndex, bottomIndex, number) {
+	constructor(leftIndex, bottomIndex, number, texture) {
 		super(true, leftIndex, bottomIndex, number, 0);
+
+		this.texture = texture || settings.gameAssets.BLOCK.model;
 	}
 
 	render() {
-		image(settings.gameAssets.BLOCK.model, this.pos.x, this.pos.y, this.size, this.size);
+		image(this.texture, this.pos.x, this.pos.y, this.size, this.size);
 		// rect(this.pos.x, this.pos.y, this.size, this.size);
 
 		return this;
@@ -857,6 +952,10 @@ class Creature {
 	}
 
 	update() {
+		if(this.pos.y > settings.canvas.height) {
+			this.declareDamage(10);
+			return this;
+		}
 		if(!this.isAlive) return this;
 
 		if(typeof this.aslDelta !== "object") { // 22
@@ -878,11 +977,6 @@ class Creature {
 			damage = 0,
 			lastDamagerID = -1,
 			speed = this.speed + ((this.set.boots && this.set.boots.speed) || 0);
-		// ETO FIASKO, BRATAN >>> speed = this.speed + ((this.set.boots && this.set.boots.speed) || 1);
-
-		if(this.set.boots) {
-			console.log(this.set.boots.speed, this.speed, speed, this.speed + this.set.boots.speed === speed);
-		}
 
 		// Test y
 		touchableElements.forEach(io => {
@@ -917,7 +1011,13 @@ class Creature {
 					if(!damage) damage += 10;
 					lastDamagerID = xTest;
 					if(this.race === 'hero') this.jumps = 0;
-				} else {
+				} else if(
+					this.canHook ||
+					(
+						!xTest && yTestObject
+						&& yTestObject.pos.y > this.pos.y + (this.height || this.size)
+					)
+				) {
 					this.jumps = this.maxJumps;
 				}
 
@@ -1034,12 +1134,15 @@ class Creature {
 					break;
 					case settings.gameAssets.GOLD_KEY.id:
 					case settings.gameAssets.SILVER_KEY.id:
+					case settings.gameAssets.BRONZE_KEY.id:
 						xTestObject.destroy(); // monsters can eat it
 						if(this.race === 'hero' && this.typenum === player.id) {
 							if(xTestObject.type === settings.gameAssets.GOLD_KEY.id) {
 								this.pushScore(settings.gameAssets.GOLD_KEY.score);
 							} else if(xTestObject.type === settings.gameAssets.SILVER_KEY.id) {
 								this.pushScore(settings.gameAssets.SILVER_KEY.score);
+							} else if(xTestObject.type === settings.gameAssets.BRONZE_KEY.id) {
+								this.pushScore(settings.gameAssets.BRONZE_KEY.score);
 							}
 						}
 					break;
@@ -1336,6 +1439,7 @@ class Hero extends Creature {
 	constructor(...props) {
 		super(...props);
 
+		this.canHook = settings.playerCanHook;
 		this.items = [];
 	}
 
@@ -2410,7 +2514,10 @@ window.Gorilla = class Gorilla extends Monster {
 		a.declareDamage(this.damage);
 		a.velocity -= 15; // 15
 		this.jumps = 0;
+	}
 
+	detectObstacle(x) {
+		if(x) this.jump();
 	}
 }
 
@@ -2628,6 +2735,7 @@ function preload() {
 	settings.gameAssets.BACKGROUND.model       = loadImage('./assets/background.jpg');
 	// ...
 	settings.gameAssets.BLOCK.model            = loadImage('./assets/block.png');
+	settings.gameAssets.GLASS.model            = loadImage('./assets/block_glass.png');
 	// Items
 	settings.gameAssets.HEALTH_BOTTLE.model    = loadImage('./assets/items/heal.png');
 	settings.gameAssets.ARMOR_1.model          = loadImage('./assets/items/arm1.png');
@@ -2644,6 +2752,7 @@ function preload() {
 	settings.gameAssets.SHIELD_ITEM.model      = loadImage('./assets/items/shield.png');
 	settings.gameAssets.GOLD_KEY.model         = loadImage('./assets/items/goldkey.png')
 	settings.gameAssets.SILVER_KEY.model       = loadImage('./assets/items/silverkey.png')
+	settings.gameAssets.BRONZE_KEY.model       = loadImage('./assets/items/bronzekey.png')
 	settings.gameAssets.SHIELD.model           = loadImage('./assets/items/shieldEffect.png');
 	settings.gameAssets.METEOR_SUMMONER.model  = loadImage('./assets/items/sMeteor.png');
 	// Objects
@@ -2663,8 +2772,9 @@ function preload() {
 	player.models.fly                          = loadImage('./assets/hero/fly.gif');
 
 	// Icon
-	settings.icons.SOUNDS_ICON.image            = loadImage('./assets/icons/sound.png');
-	settings.icons.MUSIC_ICON.image             = loadImage('./assets/icons/music.png');
+	settings.icons.SOUNDS_ICON.image           = loadImage('./assets/icons/sound.png');
+	settings.icons.MUSIC_ICON.image            = loadImage('./assets/icons/music.png');
+	settings.icons.HOOK_ICON.image              = loadImage('./assets/icons/hook.png');
 
 	// Sounds
 	settings.sounds.ARMOR_GET.audio            = loadSound('./assets/sounds/armorget.wav');
@@ -2937,6 +3047,22 @@ function preload() {
 function setup() {
 	settings.canvas.target = createCanvas(settings.canvas.width, settings.canvas.height).elt;
 	frameRate(settings.canvas.FPS);
+
+	{ // Sound status from localStorage
+		let a = localStorage.getItem("GLOBAL_SETTINGS");
+		a = a && JSON.parse(a);
+
+		if(a) {
+			settings = {
+				...settings,
+				...a
+			}
+		} else if(!a) { // first session
+			updateLocalStorage();
+		}
+	}
+
+	if(settings.gmTesting) start();
 }
 
 function draw() {
@@ -2948,7 +3074,7 @@ function draw() {
 			b = 215, // btn width
 			c = 2.5, // in shadow size
 			d = 4, // stroke
-			e = 15, // margin
+			e = 12.5, // margin
 			f = false, // mouse on a button on this frame
 			g = 45, // control btn size
 			h = 30; // control btn icon size
@@ -2956,7 +3082,7 @@ function draw() {
 		[ // buttons
 			{ // Deathmatch mode
 				placeID: 0,
-				title: "Deathmatch",
+				title: "DEATHMATCH",
 				color: "#92CD41",
 				type: "MENU",
 				onClick: () => {
@@ -2984,6 +3110,7 @@ function draw() {
 				isActive: settings.soundsOn,
 				onClick: () => {
 					settings.soundsOn = !settings.soundsOn;
+					updateLocalStorage();
 				}
 			},
 			{
@@ -2995,6 +3122,19 @@ function draw() {
 				isActive: settings.musicOn,
 				onClick: () => {
 					settings.musicOn = !settings.musicOn;
+					updateLocalStorage();
+				}
+			},
+			{
+				placeID: 0,
+				icon: settings.icons.HOOK_ICON.image,
+				active: "#92CD41",
+				disabled: "#E76E55",
+				type: "ADDONS",
+				isActive: settings.playerCanHook,
+				onClick: () => {
+					settings.playerCanHook = !settings.playerCanHook;
+					updateLocalStorage();
 				}
 			}
 		].forEach(io => { // cursor:pointer
@@ -3004,8 +3144,11 @@ function draw() {
 			if(io.type === "MENU") {
 				var posX = settings.canvas.width / 2 - bb / 2,
 					posY = settings.canvas.height / 2 + ((ba + e) * io.placeID);
-			} else {
+			} else if(io.type === "CONTROLS") {
 				var posX = (e + g) * io.placeID + e,
+					posY = e;
+			} else if(io.type === "ADDONS") {
+				var posX = settings.canvas.width - ((e + g) * (io.placeID + 1)),
 					posY = e;
 			}
 
@@ -3028,18 +3171,20 @@ function draw() {
 			noStroke();
 			strokeWeight(0);
 			fill('rgba(240, 240, 240, .4)');
-			rect(
-				posX + bb - c - d / 2,
-				posY + d / 2,
-				c,
-				ba - d
-			);
-			rect(
-				posX + c / 2,
-				posY + ba - d,
-				bb - c * 1.5,
-				c
-			);
+			if((io.type === "MENU") || io.isActive === true) {
+				rect(
+					posX + bb - c - d / 2,
+					posY + d / 2,
+					c,
+					ba - d
+				);
+				rect(
+					posX + c / 2,
+					posY + ba - d,
+					bb - c * 1.5,
+					c
+				);
+			}
 
 			// Text / Icon
 			if(io.type === "MENU") {
@@ -3182,7 +3327,7 @@ function draw() {
 		}
 
 		if(settings.inGame && !settings.devTesting && !session.startTime && session.isRage && --session.rageEnd) {
-			let a = a => session.rageEnd % a,
+			let a = a => floor(session.rageEnd % a),
 				b = '';
 
 			if(a(2) === 0) {
@@ -3241,27 +3386,39 @@ function draw() {
 
 		map.forEach((io, ia, arr1) => {
 			io.forEach((ik, il, arr2) => {
-				if(ik) {
-					if(Number.isInteger(ik)) { // generate class
-						switch(ik) {
-							case settings.gameAssets.BLOCK.id: // block
-								var a = new Block(il, ia, ik);
-							break;
-							case settings.gameAssets.LAVA.id: // lava
-								var a = new Lava(il, ia, ik);
-							break;
-							default:return; // invalid element -> break function
-						}
+				if(!ik) return;
+				if(Number.isInteger(ik)) { // generate class
 
-						arr2[il] = {
-							object: a,
-							material: ik
-						}
-					} else { // use exists class
-						touchableElements.push(ik.object);
-						ik.object.render();
-						ik.object.update && ik.object.update();
+					{
+						let a = settings.gameAssets;
+						var iks = {
+							[a.BLOCK.markupID]: a.BLOCK.id,
+							[a.LAVA.markupID]: a.LAVA.id,
+							[a.GLASS.markupID]: a.BLOCK.id
+						}[ik];
 					}
+
+					switch(ik) {
+						case settings.gameAssets.BLOCK.markupID: // block
+							var a = new Block(il, ia, iks, settings.gameAssets.BLOCK.model);
+						break;
+						case settings.gameAssets.LAVA.markupID: // lava
+							var a = new Lava(il, ia, iks);
+						break;
+						case settings.gameAssets.GLASS.markupID:
+							var a = new Block(il, ia, iks, settings.gameAssets.GLASS.model);
+						break;
+						default:return; // invalid element -> break function
+					}
+
+					arr2[il] = {
+						object: a,
+						material: iks
+					}
+				} else { // use exists class
+					touchableElements.push(ik.object);
+					ik.object.render();
+					ik.object.update && ik.object.update();
 				}
 			});
 		});
