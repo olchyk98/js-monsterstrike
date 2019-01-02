@@ -28,14 +28,18 @@
 	mage (+),
 	monsters can't attack mage-fix (+),
 	mage -> display armor (+),
-	_1.1 : story lines for items, monsters, hero (ex: Gorilla) (+),
+	_1.1 : story lines for monsters, hero (ex: Gorilla) (+),
 	_1.2 : rave (+),
 	_1.3 : rage (+),
 	_1.5 : sounds (+),
 	_1.6 : menu -> single, multi (+/x2),
 	_1.6.01 : add func route to single (+),
-	_1.8 : Generate random map (use alg!)
-	_1.9 : Migrate to vanilla canvas
+	_1.7 : score system,
+	_1.71 : iterations score,
+	_1.72 : mute sounds/music,
+	_1.->75 : fix restart game (+),
+	_1.8 : Generate random map (use alg!),
+	_1.9 : Migrate to vanilla canvas,
 	_2.0 : Multiplayer mode (Websockets)
 */
 
@@ -362,6 +366,13 @@ const settings = {
 			audio: null
 		}
 	},
+	music: { // gameplay background music
+		UNDERTALE: {
+			id: 200,
+			type: "MUSIC",
+			audio: null
+		}
+	},
 	itemKeys: [
 		70, 71,
 		66, 78
@@ -378,7 +389,7 @@ let player = {
 	},
 	OBJECT: null,
 	heatlh: 125,
-	regeneration: 5,
+	regeneration: 25,
 	damage: 10,
 	minSpeed: 4.5,
 	maxSpeed: 5,
@@ -418,16 +429,16 @@ let player = {
 		monsterDelta: 0,
 
 		isRave: false,
-		raveDelta: Math.floor(Math.random() * 2000),
-		raveEnd: 1200,
+		raveDelta: Math.floor(Math.random() * 3000),
+		raveEnd: Math.floor(Math.random() * (2000 - 400) + 400),
 		ravesTi: Infinity, // null
 
 		isRage: false,
 		rageDelta: Math.floor(Math.random() * 4000),
-		rageEnd: 1200,
+		rageEnd: Math.floor(Math.random() * (2000 - 400) + 400),
 		ragesTi: Infinity, // null
 	},
-	session = Object.assign({}, defaultSession);
+	session = null;
 
 // 0 - void
 // 1 - block
@@ -443,11 +454,20 @@ const map = [
 	[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ];
 
-function start(a) {
-	settings.canvas.target.style.cursor = "default";
+function playSound(sound) {
+	sound.play()
+}
 
+function start(a, playSong = false) { // move to the setup function
+	settings.canvas.target.style = `
+		cursor:default;
+		filter:inherit;
+	`;
+
+	// Setup session
 	session = Object.assign({}, defaultSession);
 
+	// Setup settings
 	settings.inGame = true;
 	settings.inMenu = false;
 	session.isMultiplayer = a;
@@ -459,10 +479,20 @@ function start(a) {
 	mages.length = magesID =
 	items.length = itemsID = 0;
 
+	// Setup itemRefresher
 	itemsRefresh = {
 		started: false,
 		wait: 0,
 		delta: 0
+	}
+
+	// Setup player
+	player.OBJECT = new Player;
+
+	if(playSong) { // Setup background song
+		// TODO: Stop prev song
+		let b = Object.values(settings.music).map(({ audio }) => audio);
+		b[floor(random(b.length))].play();
 	}
 }
 
@@ -686,14 +716,14 @@ class Creature {
 				switch(xTest) {
 					case settings.gameAssets.HEALTH_BOTTLE.id:
 						xTestObject.destroy();
-						settings.sounds.ITEM_GET.audio.play();
+						playSound(settings.sounds.ITEM_GET.audio);
 						this.health += settings.gameAssets.HEALTH_BOTTLE.health;
 						if(this.health > this.maxHealth) this.health = this.maxHealth;
 					break;
 					case settings.gameAssets.ARMOR_1.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
-							settings.sounds.ARMOR_GET.audio.play();
+							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.armor = {
 								name: "ARMOR_1",
 								health: settings.gameAssets.ARMOR_1.health
@@ -703,7 +733,7 @@ class Creature {
 					case settings.gameAssets.ARMOR_2.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
-							settings.sounds.ARMOR_GET.audio.play();
+							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.armor = {
 								name: "ARMOR_2",
 								health: settings.gameAssets.ARMOR_2.health
@@ -713,7 +743,7 @@ class Creature {
 					case settings.gameAssets.ARMOR_3.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
-							settings.sounds.ARMOR_GET.audio.play();
+							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.armor = {
 								name: "ARMOR_3",
 								health: settings.gameAssets.ARMOR_3.health
@@ -723,7 +753,7 @@ class Creature {
 					case settings.gameAssets.ARMOR_4.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
-							settings.sounds.ARMOR_GET.audio.play();
+							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.armor = {
 								name: "ARMOR_4",
 								health: settings.gameAssets.ARMOR_4.health
@@ -733,7 +763,7 @@ class Creature {
 					case settings.gameAssets.HELMET.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
-							settings.sounds.ARMOR_GET.audio.play();
+							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.helmet = {
 								name: "HELMET",
 								health: settings.gameAssets.HELMET.health
@@ -743,7 +773,7 @@ class Creature {
 					case settings.gameAssets.BOOTS.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
-							settings.sounds.ARMOR_GET.audio.play();
+							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.boots = {
 								name: "BOOTS",
 								speed: settings.gameAssets.BOOTS.speed,
@@ -754,7 +784,7 @@ class Creature {
 					case settings.gameAssets.SHIELD_ITEM.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
-							settings.sounds.ARMOR_GET.audio.play();
+							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.shield = {
 								name: "SHIELD_ITEM",
 								time: settings.gameAssets.SHIELD.time
@@ -764,14 +794,14 @@ class Creature {
 					case settings.gameAssets.MAGE_SPAWNER.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
-							settings.sounds.ITEM_GET.audio.play();
+							playSound(settings.sounds.ITEM_GET.audio);
 							this.takeItem("MAGE_SPAWNER");
 						}
 					break;
 					case settings.gameAssets.METEOR_SUMMONER.id:
 						xTestObject.destroy();
 						if(this.race === 'hero') {
-							settings.sounds.ITEM_GET.audio.play();
+							playSound(settings.sounds.ITEM_GET.audio);
 							this.takeItem("METEOR_SUMMONER");
 						}
 					break;
@@ -894,7 +924,7 @@ class Creature {
 			if(!this.jumps) return;
 
 			if(!a) {
-				settings.sounds.JUMP.audio.play();
+				playSound(settings.sounds.JUMP.audio);
 				a = true;
 			}
 		
@@ -912,7 +942,7 @@ class Creature {
 			if(this.typenum === player.id) {
 				settings.inGame = false;
 				settings.canvas.target.style.filter = "grayscale(100%)";
-				settings.sounds.DIE.audio.play();
+				playSound(settings.sounds.DIE.audio);
 				/*
 					The p5.js library provides filter() function,
 					but it needs a lot of memory.
@@ -1087,7 +1117,7 @@ class Hero extends Creature {
 		switch(d) {
 			case settings.gameAssets.MAGE_SPAWNER.id: {
 				mages.push(new Mage(++magesID, this));
-				settings.sounds.MAGE_SUMMON.audio.play();
+				playSound(settings.sounds.MAGE_SUMMON.audio);
 			}
 			break;
 			case settings.gameAssets.METEOR_SUMMONER.id: {
@@ -1097,7 +1127,7 @@ class Hero extends Creature {
 				e.height = 2;
 
 				meteors.push(new Meteor(++meteorsID, null, null, e));
-				settings.sounds.METEOR.audio.play();
+				playSound(settings.sounds.METEOR.audio);
 			}
 			break;
 			default:break;
@@ -1106,6 +1136,13 @@ class Hero extends Creature {
 }
 
 class Player extends Hero {
+	/*
+		One of the last people on the planet,
+		who is also one of the engineers,
+		who opened a portal with monsters is trying
+		to survive now.
+	*/
+
 	constructor() {
 		super(
 			0, // id
@@ -1242,7 +1279,7 @@ class Player extends Hero {
 
 		this.aslDelta = this.asl;
 
-		settings.sounds.SHOOT.audio.play();
+		playSound(settings.sounds.SHOOT.audio);
 
 		bullets.push(new Bullet(
 			++bulletsID, // id
@@ -1519,13 +1556,13 @@ class Mage extends Hero {
 		this.teleportDelta = this.teleportAsl;
 		this.target.pos = Object.assign({}, this.pos);
 
-		settings.sounds.TELEPORT.audio.play();
+		playSound(settings.sounds.TELEPORT.audio);
 
 		this.hit(); // force
 	}
 
 	shoot() {
-		settings.sounds.SHOOT.audio.play();
+		playSound(settings.sounds.SHOOT.audio);
 
 		this.shootDelta = this.shootAsl;
 		bullets.push(new Bullet(
@@ -1552,7 +1589,7 @@ class Mage extends Hero {
 		this.hitting = true;
 		this.hitFrame = 0;
 
-		settings.sounds.MAGE_HIT.audio.play();
+		playSound(settings.sounds.MAGE_HIT.audio);
 
 		let a = settings.gameAssets.MAGE;
 
@@ -1892,7 +1929,7 @@ window.Slime = class Slime extends Monster {
 	}
 
 	attack() {
-		settings.sounds.HIT.audio.play();
+		playSound(settings.sounds.HIT.audio);
 		this.jump();
 		this.aslDelta = this.asl;
 		(mages[0] || player.OBJECT).declareDamage(this.damage);
@@ -1973,7 +2010,7 @@ window.Lizard = class Lizard extends Monster {
 	}
 
 	attack(player) {
-		settings.sounds.SHOOT.audio.play();
+		playSound(settings.sounds.SHOOT.audio);
 
 		this.aslDelta = this.asl;
 		bullets.push(new Bullet(
@@ -2100,7 +2137,7 @@ window.Gorilla = class Gorilla extends Monster {
 		let a = mages[0] || player.OBJECT;
 		this.aslDelta.hit = this.asl.hit;
 
-		settings.sounds.HIT.audio.play();
+		playSound(settings.sounds.HIT.audio);
 
 		this.jump();
 		a.declareDamage(this.damage);
@@ -2364,6 +2401,9 @@ function preload() {
 	settings.sounds.TELEPORT.audio             = loadSound('./assets/sounds/teleport.wav');
 	settings.sounds.TEXT.audio                 = loadSound('./assets/sounds/text.wav');
 
+	// songs
+	settings.music.UNDERTALE.audio             = loadSound('./assets/music/undertale.mp3');
+
 	// Lava models
 	[
 		'./assets/lava/1.png',
@@ -2612,8 +2652,6 @@ function setup() {
 	settings.canvas.target = createCanvas(settings.canvas.width, settings.canvas.height).elt;
 	frameRate(settings.canvas.FPS);	
 
-	player.OBJECT = new Player;
-
 	// monsters.push(new Slime(++monstersID, true));
 	// monsters.push(new Lizard(++monstersID, true));
 	// monsters.push(new Gorilla(++monstersID, true));
@@ -2649,12 +2687,14 @@ function draw() {
 		[
 			{ // Deathmatch mode
 				title: "Deathmatch",
+				color: "#92CD41",
 				onClick: () => {
-					start(false);
+					start(false, true);
 				}
 			},
 			{ // Multiplayer mode
 				title: "Multiplayer",
+				color: "#E76E55",
 				onClick: () => {
 					alert("CHECK THE CONSOLE");
 					console.warn("Multiplayer mode is not supported yet. You can contact me if you want to help.");
@@ -2666,7 +2706,7 @@ function draw() {
 				posY = settings.canvas.height / 2 + ((a + e) * ia);
 
 			// Rectangle with outline
-			fill('#92CD41');
+			fill(io.color);
 			strokeWeight(d);
 			stroke('rgba(0, 0, 0, .45)');
 			rect(
@@ -2736,7 +2776,7 @@ function draw() {
 			let a = a => round(session.startTime / (settings.canvas.FPS - a));
 
 			if(a(0) !== a(1)) {
-				settings.sounds.TEXT.audio.play();
+				playSound(settings.sounds.TEXT.audio);
 			}
 
 			textFont(mainFont);
@@ -2748,18 +2788,28 @@ function draw() {
 
 		// Rave
 		if(session.ravesTi && --session.raveDelta <= 0) {
+			defaultSession.raveDelta = random(4000);
+			defaultSession.raveEnd = random(400, 2000);
+			session.raveDelta = defaultSession.raveDelta;
+			session.raveEnd = defaultSession.raveEnd;
+
 			if(--session.ravesTi <= 0) {
 				session.ravesTi = null; // NO raves on this level.
 			}
 
 			if(!session.isRave) {
-				settings.sounds.RAVE.audio.play();
+				console.log({
+					status: "RAVE_PLAY",
+					raveDelta: session.raveDelta,
+					raveEnd: session.raveEnd
+				});
+				playSound(settings.sounds.RAVE.audio);
 				session.isRave = true;
 			}
 		}
 
 		if(!session.startTime && session.isRave && --session.raveEnd) {
-			let a = a => session.raveEnd % a,
+			let a = a => floor(session.raveEnd % a),
 				b = '';
 
 			if(a(2) === 0) {
@@ -2781,12 +2831,25 @@ function draw() {
 
 		// Rage
 		if(session.ragesTi && --session.rageDelta <= 0) {
+			defaultSession.raveDelta = random(3000);
+			defaultSession.raveEnd = random(600, 1400);
+			session.raveDelta = defaultSession.raveDelta;
+			session.raveEnd = defaultSession.raveEnd;
+
+			session.rageDelta = defaultSession.rageDelta;
+			session.rageEnd = defaultSession.rageEnd;
+
 			if(--session.ragesTi <= 0) {
 				session.ragesTi = null;
 			}
 
 			if(!session.isRage) {
-				settings.sounds.RAGE.audio.play();
+				console.log({
+					status: "RAVE_PLAY",
+					raveDelta: session.raveDelta,
+					raveEnd: session.raveEnd
+				});
+				playSound(settings.sounds.RAGE.audio);
 				session.isRage = true;
 			}
 		}
@@ -2854,7 +2917,7 @@ function draw() {
 			textAlign(CENTER);
 			fill(255);
 			text('YOU DIED!', settings.canvas.width / 2, settings.canvas.height / 2 + 20);
-			noLoop();
+			// noLoop();
 		}
 
 		touchableElements = [];
@@ -2934,7 +2997,7 @@ function mousePressed() {
 			y: mouseY
 		}
 	} else if(!settings.inMenu && !settings.inGame) {
-		start(session.isMultiplayer);
+		start(session.isMultiplayer, false);
 	}
 }
 
