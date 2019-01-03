@@ -1,4 +1,4 @@
-// 2018-2019 @Oles Odynets.
+// 2018 - 2019 @Oles Odynets.
 // https://github.com/olchyk98
 
 /*
@@ -44,9 +44,13 @@
 	_1.73 : mute status to localstorage, auto save and restore (+),
 	_1.->75 : fix restart game (+),
 	_1.8 : Add maps (+),
-	_1.8.1 : Add recomendations and informations -> maps
+	_1.8.1 : Add recomendations and informations -> maps (+),
+	_1.8.2 : Add map backgrounds (+),
+	_1.9 : Add "throw down a bomb" skill with round delta for the hero (+),
 	_2.0 : Multiplayer mode (Websockets),
 	_2.1 : Migrate to vanilla canvas -> loading progress bar (just create p5js functions again)
+
+	-- music : https://www.youtube.com/watch?v=OSPbX0lkTmQ&list=PLpJl5XaLHtLX-pDk4kctGxtF4nq6BIyjg&index=8
 */
 
 /*	
@@ -68,9 +72,11 @@ let settings = {
 	devTesting: false, // Don't load hard stuff (monsters, music...)
 	chTesting: false, // Turn on cheats
 	gmTesting: false, // Start game after canvas loading
-	musicOn: true,
-	soundsOn: true,
-	playerCanHook: false,
+	musicOn: true, // default
+	soundsOn: true, // default
+	playerCanHook: true, // default
+	gameplayBackground: null,
+	blockSize: 34, // settings.canvas.width / map[0].length
 	canvas: {
 		height: 445, // 445
 		width: 850, // 800 - 850
@@ -103,22 +109,45 @@ let settings = {
 		maxEnd: 1500
 	},
 	gameAssets: { // objects settings
+		// WARNING: 0 reserved.
 		BACKGROUND_MENU: {
+			id: 1,
 			type: "THEME",
 			model: null
 		},
-		BACKGROUND: {
+		BACKGROUND_1: {
+			id: 2,
+			type: "THEME",
+			model: null
+		},
+		BACKGROUND_2: {
+			id: 3,
+			type: "THEME",
+			model: null
+		},
+		BACKGROUND_3: {
+			id: 4,
+			type: "THEME",
+			model: null
+		},
+		BACKGROUND_4: {
+			id: 5,
+			type: "THEME",
+			model: null
+		},
+		BACKGROUND_5: {
+			id: 6,
 			type: "THEME",
 			model: null
 		},
 		BLOCK: {
-			id: 1,
+			id: 15,
 			markupID: 1,
 			type: "BLOCK",
 			model: null
 		},
 		LAVA: {
-			id: 2,
+			id: 16,
 			markupID: 2,
 			type: "BLOCK",
 			model: []
@@ -129,122 +158,129 @@ let settings = {
 			model: null
 		},
 		ARMOR_1: {
-			id: 20,
+			id: 30,
 			type: "ITEM",
 			health: 15,
 			model: null
 		},
 		ARMOR_2: {
-			id: 21,
+			id: 31,
 			type: "ITEM",
 			health: 25,
 			model: null
 		},
 		ARMOR_3: {
-			id: 22,
+			id: 32,
 			type: "ITEM",
 			health: 45,
 			model: null
 		},
 		ARMOR_4: {
-			id: 23,
+			id: 33,
 			type: "ITEM",
 			health: 115,
 			model: null
 		},
 		HELMET: {
-			id: 24,
+			id: 34,
 			type: "ITEM",
 			health: 30,
 			model: null
 		},
 		BOOTS: {
-			id: 25,
+			id: 35,
 			type: "ITEM",
 			speed: 5,
 			limit: 600,
 			model: null
 		},
 		SHIELD_ITEM: {
-			id: 26,
+			id: 36,
 			type: "ITEM",
 			model: null
 		},
 		HEALTH_BOTTLE: {
-			id: 27,
+			id: 37,
 			type: "ITEM",
 			health: 120,
 			model: null
 		},
 		MAGE_SPAWNER: {
 			name: "Mage",
-			id: 28,
+			id: 38,
 			type: "ITEM",
 			model: null
 		},
 		METEOR_SUMMONER: {
 			name: "Meteor",
-			id: 29,
+			id: 39,
 			type: "ITEM",
 			model: null
 		},
 		GOLD_KEY: {
-			id: 30,
+			id: 40,
 			type: "ITEM",
 			score: 1000,
 			model: null
 		},
 		SILVER_KEY: {
-			id: 31,
+			id: 41,
 			type: "ITEM",
 			score: 500,
 			model: null
 		},
 		BRONZE_KEY: {
-			id: 32,
+			id: 42,
 			type: "ITEM",
 			score: 250,
 			model: null
 		},
 		METEOR: {
-			id: 50,
+			id: 60,
 			type: "OBJECT",
 			model: null,
 			speed: 24
 		},
 		SHIELD: {
-			id: 51,
+			id: 61,
 			type: "OBJECT",
 			model: null,
 			time: 175 // frames // 1000(30fps) -> 32s, 175 ~ 6s
 		},
-		BOMB: {
-			id: 52,
+		GORILLA_BOMB: {
+			id: 62,
 			type: "OBJECT",
 			model: null
 		},
+		HERO_BOMB: {
+			id: 63,
+			type: "OBJECT",
+			model: null,
+			range: 100,
+			damage: 150
+		},
 		HERO_BULLET: {
-			id: 70,
+			id: 80,
 			type: "BULLET",
 			model: null
 		},
 		LIZARD_BULLET: {
-			id: 71,
+			id: 81,
 			type: "BULLET",
 			model: null
 		},
 		MONSTER_2_BULLET: {
-			id: 72,
+			id: 82,
 			type: "BULLET",
 			model: null
 		},
 		MAGE_BULLET: {
-			id: 73,
+			id: 83,
 			type: "BULLET",
 			model: null
 		},
 		SLIME: {
-			id: 90,
+			id: 100,
 			class: 'Slime',
 			type: "MONSTER",
 			subType: "GROUND",
@@ -259,7 +295,7 @@ let settings = {
 			jumpHeight: 12
 		},
 		LIZARD: {
-			id: 91,
+			id: 101,
 			class: 'Lizard',
 			type: "MONSTER",
 			subType: "GROUND",
@@ -276,7 +312,7 @@ let settings = {
 			jumpHeight: 12
 		},
 		GORILLA: {
-			id: 92,
+			id: 102,
 			class: 'Gorilla',
 			type: "MONSTER",
 			subType: "GROUND",
@@ -289,13 +325,13 @@ let settings = {
 			attackDelta: 20,
 			bombDelta: 200,
 			maxJumps: 1,
-			jumpHeight: 5,
+			jumpHeight: 7.5,
 			bombRange: 400,
 			bombTime: 100,
 			bombDamage: 20
 		},
 		BIRD: {
-			id: 93,
+			id: 103,
 			class: 'Bird',
 			type: "MONSTER",
 			subType: "AIR",
@@ -309,17 +345,17 @@ let settings = {
 			throwRange: 30
 		},
 		SMOKE: {
-			id: 110,
+			id: 120,
 			type: "VISUAL",
 			model: []
 		},
 		ELECTRO: {
-			id: 111,
+			id: 121,
 			type: "VISUAL",
 			model: []
 		},
 		MAGE: {
-			id: 130,
+			id: 140,
 			type: "HERO",
 			models: {
 				app: [],
@@ -431,6 +467,11 @@ let settings = {
 			id: 176,
 			type: "SOUND",
 			audio: null
+		},
+		EXPLOSION: {
+			id: 177,
+			type: "SOUND",
+			audio: null
 		}
 	},
 	music: { // gameplay background music
@@ -488,7 +529,7 @@ let player = {
 	minSpeed: 4.5,
 	maxSpeed: 5,
 	bulletRange: settings.canvas.width * .75,
-	canHook: false
+	bombDelta: settings.canvas.FPS * 25, // 25s
 },
 	monsters = [],
 	monstersID = 0,
@@ -499,8 +540,11 @@ let player = {
 	meteors = [],
 	meteorsID = 0,
 
-	bombs = [],
-	bombsID = 0,
+	mbombs = [],
+	mbombsID = 0,
+
+	hbombs = [],
+	hbombsID = 0,
 
 	mages = [],
 	magesID = 0,
@@ -519,7 +563,7 @@ let player = {
 		isMultiplayer: false,
 		currentSong: null,
 
-		startTime: settings.canvas.FPS * 5, // 5s
+		startTime: 0, // 5s // settings.canvas.FPS * 5
 		monsterMinTime: settings.canvas.FPS, // 1s
 		monsterMaxTime: settings.canvas.FPS * 3, // 3s
 		monsterDelta: 0,
@@ -550,56 +594,89 @@ let player = {
 // 2 - lava
 // 3 - glass
 const maps = [ // 5 maps
-	[ // 1. Direct
-		[0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-	],
-	[ // 2. Cosvidel
-		[0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
-		[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0],
-		[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-	],
-	[ // 3. Crash
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0],
-		[0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0],
-		[1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
-		[2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-	],
-	[ // 4. Crazy Piramid
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0],
-		[0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 1, 1, 2, 1, 1, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 1, 1, 3, 1, 1, 2, 1, 1, 3, 1, 1, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 1, 1, 2, 1, 1, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0],
-		[1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 2, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-	],
-	[ // 5. 23 June
-		[0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 2, 2, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 2, 2, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-		[1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 2, 2, 2, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
-		[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-	]
+	{ // 1. Direct
+		/*
+			Map with three lava blocks that can help you during the rave.
+            Few blocks in the air will help you to kill every bird who will want to kill you.
+		*/
+		map: [
+			[0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+		],
+		backgroundID: settings.gameAssets.BACKGROUND_1.id
+	},
+	{ // 2. Cosvidel
+		/*
+			When the portal was opened a lot of catastrofes happend.
+			One of them was that Plane crashed on the shorelines of the Amazon.
+			So, there are a lot of monsters which you have to fight.
+		*/
+		map: [
+			[0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+			[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+			[0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+		],
+		backgroundID: settings.gameAssets.BACKGROUND_2.id
+	},
+	{ // 3. Crash
+		/*
+			Place at the portal opening. Everything was destroyed here. Be careful!
+			- Don't use the block with lava.
+		*/
+		map: [
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0],
+			[0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0],
+			[1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+			[2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+		],
+		backgroundID: settings.gameAssets.BACKGROUND_4.id
+	},
+	{ // 4. Crazy Piramid
+		/*//*/
+		map: [
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0],
+			[0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 1, 1, 2, 1, 1, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 1, 1, 2, 1, 1, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 1, 1, 3, 1, 1, 2, 1, 1, 3, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 1, 1, 2, 1, 1, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+			[1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 2, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+		],
+		backgroundID: settings.gameAssets.BACKGROUND_3.id
+	},
+	{ // 5. 23 June
+		/*
+			Splited arena.
+			- Enable hook to be able to move around the parts.
+		*/
+		map: [
+			[0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 2, 2, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 2, 2, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 2, 2, 2, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+			[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+		],
+		backgroundID: settings.gameAssets.BACKGROUND_5.id
+	}
 ];
 
 let map = [];
@@ -610,8 +687,17 @@ function playSound(sound) {
 	sound.play();
 }
 
-function start(a, playSong = false) { // move to the setup function
-	if(!settings.musicOn || settings.devTesting) playSong = false;
+function playSong() {
+	let b = Object.values(settings.music).map(({ audio }) => audio),
+		c = b[floor(random(b.length))];
+
+	c.play();
+	c.onended(playSong)
+	session.currentSong = c;
+}
+
+function start(a, withSong = false) { // move to the setup function
+	if(!settings.musicOn || settings.devTesting) withSong = false;
 
 	settings.canvas.target.style = `
 		cursor:default;
@@ -632,7 +718,8 @@ function start(a, playSong = false) { // move to the setup function
 	monsters.length = monstersID =
 	bullets.length = bulletsID =
 	meteors.length = meteorsID =
-	bombs.length = bombsID =
+	mbombs.length = mbombsID =
+	hbombs.length = hbombsID =
 	mages.length = magesID =
 	items.length = itemsID = 0;
 
@@ -646,19 +733,19 @@ function start(a, playSong = false) { // move to the setup function
 	// Setup player
 	player.OBJECT = new Player;
 
-	if(playSong) { // Setup background song
-		// TODO: Stop prev song
-		let b = Object.values(settings.music).map(({ audio }) => audio),
-			c = b[floor(random(b.length))];
-
-		c.play();
-		session.currentSong = c;
+	if(withSong) { // Setup background song
+		playSong();
 	}
 
-	// Get random map
+	// Build random map
 	{
-		let a = maps;
-		map = a[floor(random(a.length))];
+		let a = maps,
+			b = a[floor(random(a.length))];
+
+		map = b.map;
+		settings.gameplayBackground = Object.values(settings.gameAssets).find(io => io.id === b.backgroundID).model;
+		// settings.gameplayBackground = a[4].background;
+		// map = a[4].map;
 	}
 
 	// DEV
@@ -682,7 +769,8 @@ function start(a, playSong = false) { // move to the setup function
 	// items.push(new Item(++itemsID, settings.gameAssets.SILVER_KEY.model, true, settings.gameAssets.SILVER_KEY.id));
 	// items.push(new Item(++itemsID, settings.gameAssets.GOLD_KEY.model, true, settings.gameAssets.GOLD_KEY.id));
 
-	// bombs.push(new Bomb(++bombsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombTime, null, true, 'red'));
+	// mbombs.push(new MBomb(++mbombsID, null, settings.gameAssets.GORILLA.bombTime, settings.gameAssets.GORILLA.bombTime, null, true, 'red'));
+	// hbombs.push(new HBomb(++hbombsID));
 	// meteors.push(new Meteor(++meteorsID, player.OBJECT.pos));
 }
 
@@ -813,8 +901,7 @@ class Element {
 
 		this.isBlock = isBlock;
 		if(isBlock) {
-			// this.size = settings.canvas.width / map[0].length; // 34
-			this.size = 34;
+			this.size = settings.blockSize;
 
 			this.leftIndex = leftIndex;
 			this.bottomIndex = bottomIndex;
@@ -968,6 +1055,11 @@ class Creature {
 			});
 		}
 
+		if(this.race === 'hero' && this.id === player.id && this.bombDelta) {
+			this.bombDelta--;
+			if(this.bombDelta < 0) this.bombDelta = 0; // It's not important, but I want to be sure.
+		}
+
 		if(this.race === 'hero' && this.set.shield && --this.set.shield.time <= 0) {
 			this.set.shield = null;
 		}
@@ -997,17 +1089,30 @@ class Creature {
 				this.height
 			);
 
-			if(xTest) {
+			if(xTest) { // touches x
+				if(this.race === 'hero' && this.id === player.id) {
+					this.touches.x = true;
+				}
+
 				var xTestObject = xTest;
 				xTest = xTest.type;
-			}
-			if(yTest) {
-				var yTestObject = yTest;
-				yTest = yTest.type;
+			} else if(this.race === 'hero' && this.id === player.id) {
+				this.touches.x = false;
 			}
 
-			if([xTest, yTest].includes(1) || [xTest, yTest].includes(2)) { // if magerial is block or lava
-				if([xTest, yTest].includes(2)) {
+			if(yTest) { // touches y
+				if(this.race === 'hero' && this.id === player.id) {
+					this.touches.y = false;
+				}
+
+				var yTestObject = yTest;
+				yTest = yTest.type;
+			} else if(this.race === 'hero' && this.id === player.id) {
+				this.touches.y = false;
+			}
+
+			if([xTest, yTest].includes(settings.gameAssets.BLOCK.id) || [xTest, yTest].includes(settings.gameAssets.LAVA.id)) { // if magerial is block or lava
+				if([xTest, yTest].includes(settings.gameAssets.LAVA.id)) {
 					if(!damage) damage += 10;
 					lastDamagerID = xTest;
 					if(this.race === 'hero') this.jumps = 0;
@@ -1109,7 +1214,7 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.SHIELD_ITEM.id:
-						if(this.race === 'hero') {
+						if(this.race === 'hero' && this.id === player.id) {
 							xTestObject.destroy();
 							playSound(settings.sounds.ARMOR_GET.audio);
 							this.set.shield = {
@@ -1119,14 +1224,14 @@ class Creature {
 						}
 					break;
 					case settings.gameAssets.MAGE_SPAWNER.id:
-						if(this.race === 'hero') {
+						if(this.race === 'hero' && this.id === player.id) {
 							xTestObject.destroy();
 							playSound(settings.sounds.ITEM_GET.audio);
 							this.takeItem("MAGE_SPAWNER");
 						}
 					break;
 					case settings.gameAssets.METEOR_SUMMONER.id:
-						if(this.race === 'hero') {
+						if(this.race === 'hero' && this.id === player.id) {
 							xTestObject.destroy();
 							playSound(settings.sounds.ITEM_GET.audio);
 							this.takeItem("METEOR_SUMMONER");
@@ -1301,6 +1406,8 @@ class Creature {
 			let a = monsters;
 			a.splice(a.findIndex(io => io.id === this.id), 1);
 			if([
+				settings.gameAssets.HERO_BOMB.id,
+				settings.gameAssets.HERO_BULLET.id,
 				settings.gameAssets.MAGE_BULLET.id,
 				settings.gameAssets.METEOR.id
 			].includes(host)) {
@@ -1401,7 +1508,7 @@ class Bullet extends Element {
 
 			if(
 				c && c.constructor.name !== this.constructor.name &&
-				c.type !== settings.gameAssets.BOMB.id
+				c.type !== settings.gameAssets.GORILLA_BOMB.id
 			) { // c and is not a bullet and is not a bomb
 				b = false;
 
@@ -1440,7 +1547,7 @@ class Hero extends Creature {
 		super(...props);
 
 		this.canHook = settings.playerCanHook;
-		this.items = [];
+		// this.items = [];
 	}
 
 	takeItem(item) {
@@ -1495,11 +1602,87 @@ class Hero extends Creature {
 	}
 }
 
+class HBomb extends Element {
+	constructor(id) {
+		let a = player.OBJECT;
+		super(false, -1, -1, settings.gameAssets.HERO_BOMB.id, id);
+
+		this.pos = {
+			x: a.pos.x + ((!a.touches.y) ? 0 : settings.blockSize + 15),
+			y: a.pos.y + a.height
+		}
+
+		this.gravity = 5;
+		this.velocity = 0;
+
+		this.range = settings.gameAssets.HERO_BOMB.range;
+
+		this.size = 25;
+		this.damage = a.damage;
+	}
+
+	render() {
+		image(settings.gameAssets.HERO_BOMB.model, this.pos.x, this.pos.y, this.size, this.size);
+		noStroke();
+		fill('rgba(255, 0, 0, .075)');
+		ellipse(
+			this.pos.x + this.size / 2,
+			this.pos.y + this.size / 2,
+			this.range,
+			this.range
+		);
+
+		return this;
+	}
+
+	update() {
+		let a = this.velocity + this.gravity,
+			b = this.pos.y + this.velocity,
+			c = false;
+
+		touchableElements.forEach(io => {
+			if(io.predictObstacle(
+				{
+					x: this.pos.x,
+					y: this.pos.y
+				},
+				this.size,
+				this.size
+			)) {
+				this.explode();
+				c = true;
+			}
+		});
+
+		if(!c) {
+			this.velocity = a;
+			this.pos.y = b;
+		}
+	}
+
+	explode() {
+		playSound(settings.sounds.EXPLOSION.audio);
+		monsters.forEach(io => { // this.range
+			if(
+				(io.pos.x > this.pos.x - this.range && io.pos.x < this.pos.x + this.size + this.range) && // x
+				(io.pos.y > this.pos.y - this.range && io.pos.y < this.pos.y + this.size + this.range) && // y
+				io.declareDamage
+			) {
+				io.declareDamage(this.damage, settings.gameAssets.HERO_BOMB.id);
+				io.velocity = -17.5;
+			}
+		});
+
+		let a = hbombs;
+		a.splice(a.findIndex(io => io.id === this.id), 1);
+	}
+}
+
 class Player extends Hero {
 	/*
 		One of the last people on the planet,
 		who is also one of the engineers,
-		who opened a portal with monsters is trying
+		who opened a portal with monsters, is trying
 		to survive now.
 	*/
 
@@ -1529,6 +1712,16 @@ class Player extends Hero {
 			player.id // typenum
 		);
 
+		this.items = [];
+
+		this.bombAsl = player.bombDelta;
+		this.bombDelta = 0;
+
+		this.touches = {
+			x: false,
+			y: false
+		}
+
 		// this.width = 21; // this.model.width -> 1?
 		// this.height = 35; // this.model.height -> 1?
 	}
@@ -1556,6 +1749,7 @@ class Player extends Hero {
 			rect(0, 0, settings.canvas.width / 100 * (100 / (this.maxHealth / this.health)), settings.playerHBHeight);
 
 			// Text
+			noStroke();
 			textFont(mainFont);
 			textSize(24);
 			textAlign(CENTER);
@@ -1609,6 +1803,7 @@ class Player extends Hero {
 				let c = settings.gameAssets[io.name];
 				if(!c) return;
 
+				noStroke();
 				text(
 					`${ c.name } ( ${ String.fromCharCode(io.runKey).toLowerCase() } )`,
 					settings.canvas.width - a - b * 2,
@@ -1628,7 +1823,42 @@ class Player extends Hero {
 			let a = 40; // size
 
 			image(settings.gameAssets.SHIELD.model, this.pos.x + this.width / 2 - a / 2, this.pos.y + this.height / 2 - a / 2, a, a);
+		}
 
+		// Draw score and iterations
+		let sc_it_height = 20;
+		{
+			let a = score.iterations.toString(),
+				b = {
+				1: 'st',
+				2: 'nd',
+				3: 'rd'
+			}[a.slice(-1)] || 'th';
+			
+			noStroke();
+			textFont(mainFont);
+			textSize(24);
+			textAlign(CENTER);
+			fill(245);
+			text(
+				`${ score.score } points (${ a + b } iteration)`,
+				settings.canvas.width / 2,
+				settings.playerHBHeight + sc_it_height
+			);
+		}
+
+		// Draw skill
+		if(!session.startTime) {
+			noStroke()
+			textFont(mainFont);
+			textSize(24);
+			textAlign(CENTER);
+			fill(225);
+			text(
+				`${ (!this.bombDelta) ? "Skill" : "Reloading..." } (${ (!this.bombDelta) ? "E" : floor((this.bombDelta + settings.canvas.FPS) / settings.canvas.FPS) })`,
+				settings.canvas.width / 2,
+				settings.playerHBHeight + sc_it_height * 2
+			);
 		}
 
 		return this;
@@ -1666,6 +1896,13 @@ class Player extends Hero {
 		playSound(settings.sounds.SCOREUP.audio);
 
 		if(b.score < 0) b.score = 0;
+	}
+
+	throwBomb() {
+		if(this.bombDelta || session.startTime) return;
+		this.bombDelta = this.bombAsl;
+
+		hbombs.push(new HBomb(++hbombsID));
 	}
 }
 
@@ -1769,6 +2006,7 @@ class Mage extends Hero {
 				d = 45;
 
 			// Draw alive time
+			noStroke();
 			textFont(mainFont);
 			textSize(24);
 			textAlign(CENTER);
@@ -1969,12 +2207,7 @@ class Mage extends Hero {
 				(io.pos.y >= this.pos.y - a.hitRange && io.pos.y <= this.pos.y + this.height + a.hitRange) && // y
 				io.type === "GROUND"
 			) {
-				if(io.pos.x < this.pos.x) {
-					io.pos.x -= 100;
-				} else {
-					io.pos.x -= 100;
-				}
-				io.velocity -= 15;
+				io.velocity = -15;
 				io.declareDamage(a.hitDamage);
 			}
 		});
@@ -1998,11 +2231,11 @@ class Mage extends Hero {
 	}
 }
 
-class Bomb extends Element {
+class MBomb extends Element {
 	constructor(id, pos, time, damage, target = null, gstatic = true, color = 'red') {
-		super(false, 0, 0, settings.gameAssets.BOMB.id, 0);
+		super(false, 0, 0, settings.gameAssets.GORILLA_BOMB.id, 0);
 
-		this.model = settings.gameAssets.BOMB.model;
+		this.model = settings.gameAssets.GORILLA_BOMB.model;
 		this.size = 20;
 		this.color = color;
 
@@ -2035,10 +2268,15 @@ class Bomb extends Element {
 
 	render() {
 		fill({
-			red: 'rgba(255, 0, 0, .25)',
-			blue: 'rgba(0, 0, 255, .25)'
+			red: 'rgba(255, 0, 0, .15)',
+			blue: 'rgba(0, 0, 255, .15)'
 		}[this.color]);
-		ellipse(this.pos.x + this.size / 2, this.pos.y + this.size / 2, this.frame, this.frame);
+		ellipse(
+			this.pos.x + this.size / 2,
+			this.pos.y + this.size / 2,
+			this.range / 100 * 100 / (this.frame / settings.gameAssets.SMOKE.model.length),
+			this.range / 100 * 100 / (this.frame / settings.gameAssets.SMOKE.model.length)
+		);
 
 		if(this.ex && this.frame <= settings.gameAssets.SMOKE.model.length) {
 			let a = settings.gameAssets.SMOKE.model,
@@ -2058,7 +2296,7 @@ class Bomb extends Element {
 				b = false;
 
 			touchableElements
-				.filter(io => io.constructor.name !== this.constructor.name)
+				// .filter(io => io.constructor.name !== this.constructor.name)
 				.forEach(io => {
 				let c = io.predictObstacle(
 					{
@@ -2094,7 +2332,7 @@ class Bomb extends Element {
 				!this.ex && this.time <= 0
 			)
 		) {
-			bombs.splice(bombs.findIndex(io => io.id === this.id), 1);
+			mbombs.splice(mbombs.findIndex(io => io.id === this.id), 1);
 		}
 	}
 
@@ -2230,6 +2468,7 @@ class Monster extends Creature {
 		// Draw model
 		image(this.model, this.pos.x, this.pos.y, this.size, this.size);
 
+		noStroke();
 		textFont(mainFont);
 		textSize(25);
 		textAlign(CENTER);
@@ -2493,8 +2732,8 @@ window.Gorilla = class Gorilla extends Monster {
 	spawnBomb(a, b) {
 		this.aslDelta.bomb = this.asl.bomb;
 
-		bombs.push(new Bomb(
-			++bombsID,
+		mbombs.push(new MBomb(
+			++mbombsID,
 			null,
 			settings.gameAssets.GORILLA.bombTime,
 			settings.gameAssets.GORILLA.bombDamage,
@@ -2512,7 +2751,7 @@ window.Gorilla = class Gorilla extends Monster {
 
 		this.jump();
 		a.declareDamage(this.damage);
-		a.velocity -= 15; // 15
+		a.velocity = -15; // 15
 		this.jumps = 0;
 	}
 
@@ -2628,8 +2867,8 @@ window.Bird = class Bird extends Element {
 		
 		// id, pos, time, damage, target = null, gstatic = true, color = 'red'
 
-		bombs.push(new Bomb(
-			++bombsID,
+		mbombs.push(new MBomb(
+			++mbombsID,
 			{
 				x: this.pos.x,
 				y: this.pos.y + this.size
@@ -2731,8 +2970,12 @@ function preload() {
 
 	// models
 	// Backgrounds
-	settings.gameAssets.BACKGROUND_MENU.model  = loadImage('./assets/background2.png');
-	settings.gameAssets.BACKGROUND.model       = loadImage('./assets/background.jpg');
+	settings.gameAssets.BACKGROUND_MENU.model  = loadImage('./assets/backgrounds/menu.png');
+	settings.gameAssets.BACKGROUND_1.model     = loadImage('./assets/backgrounds/game1.jpg');
+	settings.gameAssets.BACKGROUND_2.model     = loadImage('./assets/backgrounds/game2.jpg');
+	settings.gameAssets.BACKGROUND_3.model     = loadImage('./assets/backgrounds/game3.jpg');
+	settings.gameAssets.BACKGROUND_4.model     = loadImage('./assets/backgrounds/game4.jpg');
+	settings.gameAssets.BACKGROUND_5.model     = loadImage('./assets/backgrounds/game5.jpg');
 	// ...
 	settings.gameAssets.BLOCK.model            = loadImage('./assets/block.png');
 	settings.gameAssets.GLASS.model            = loadImage('./assets/block_glass.png');
@@ -2757,7 +3000,8 @@ function preload() {
 	settings.gameAssets.METEOR_SUMMONER.model  = loadImage('./assets/items/sMeteor.png');
 	// Objects
 	settings.gameAssets.METEOR.model           = loadImage('./assets/items/meteor.png');
-	settings.gameAssets.BOMB.model             = loadImage('./assets/items/poison.png')
+	settings.gameAssets.GORILLA_BOMB.model     = loadImage('./assets/items/bomb.png');
+	settings.gameAssets.HERO_BOMB.model        = loadImage('./assets/items/playerBomb.png');
 	// Monsters
 	if(!settings.devTesting) {
 		settings.gameAssets.SLIME.model        = loadImage('./assets/monsters/slime.gif');
@@ -2774,7 +3018,7 @@ function preload() {
 	// Icon
 	settings.icons.SOUNDS_ICON.image           = loadImage('./assets/icons/sound.png');
 	settings.icons.MUSIC_ICON.image            = loadImage('./assets/icons/music.png');
-	settings.icons.HOOK_ICON.image              = loadImage('./assets/icons/hook.png');
+	settings.icons.HOOK_ICON.image             = loadImage('./assets/icons/hook.png');
 
 	// Sounds
 	settings.sounds.ARMOR_GET.audio            = loadSound('./assets/sounds/armorget.wav');
@@ -2794,6 +3038,7 @@ function preload() {
 	settings.sounds.TEXT.audio                 = loadSound('./assets/sounds/text.wav');
 	settings.sounds.SELECT.audio               = loadSound('./assets/sounds/select.wav');
 	settings.sounds.SCOREUP.audio              = loadSound('./assets/sounds/scoreup.wav');
+	settings.sounds.EXPLOSION.audio            = loadSound('./assets/sounds/explosion.mp3');
 
 	// Songs
 	if(!settings.devTesting) {
@@ -3188,6 +3433,7 @@ function draw() {
 
 			// Text / Icon
 			if(io.type === "MENU") {
+				noStroke();
 				textFont(mainFont);
 				textSize(40);
 				textAlign(CENTER);
@@ -3230,26 +3476,7 @@ function draw() {
 		});
 	} else { // draw game
 		// Background
-		image(settings.gameAssets.BACKGROUND.model, 0, 0, settings.canvas.width, settings.canvas.height);
-
-		// Draw score and iterations
-		textFont(mainFont);
-		textSize(24);
-		textAlign(CENTER);
-		fill(245);
-		{
-			let a = score.iterations.toString(),
-				b = {
-				1: 'st',
-				2: 'nd',
-				3: 'rd'
-			}[a.slice(-1)] || 'th';
-			text(
-				`${ score.score } points (${ a + b } iteration)`,
-				settings.canvas.width / 2,
-				settings.playerHBHeight + 20
-			);
-		}
+		image(settings.gameplayBackground, 0, 0, settings.canvas.width, settings.canvas.height);
 
 		// Draw start time
 		if(session.startTime) {
@@ -3261,6 +3488,7 @@ function draw() {
 				playSound(settings.sounds.TEXT.audio);
 			}
 
+			noStroke();
 			textFont(mainFont);
 			textSize(64);
 			textAlign(CENTER);
@@ -3295,6 +3523,7 @@ function draw() {
 				b = 'blue'
 			}
 
+			noStroke();
 			textFont(mainFont);
 			textSize(64);
 			textAlign(CENTER);
@@ -3336,6 +3565,7 @@ function draw() {
 				b = 'blue'
 			}
 
+			noStroke();
 			textFont(mainFont);
 			textSize(64);
 			textAlign(CENTER);
@@ -3428,8 +3658,12 @@ function draw() {
 			io.render();
 		});
 
-		bombs.forEach(io => {
-			touchableElements.push(io);
+		mbombs.forEach(io => {
+			// touchableElements.push(io);
+			io.render().update();
+		});
+
+		hbombs.forEach(io => {
 			io.render().update();
 		});
 
@@ -3455,6 +3689,7 @@ function draw() {
 
 		// Game Over text
 		if(!settings.inGame) {
+			noStroke();
 			textFont(mainFont);
 			textSize(64);
 			textAlign(CENTER);
@@ -3495,12 +3730,14 @@ function mouseReleased() {
 function keyPressed() {
 	if(settings.inMenu || !settings.inGame || !player.OBJECT) return;
 
-	if([65, 68].includes(keyCode)) {
+	if([65, 68].includes(keyCode)) { // change movememnt direction
 		player.OBJECT.controlPos((keyCode === 65) ? -1 : 1);
-	} else if(keyCode === 32) {
+	} else if(keyCode === 32) { // jump
 		player.OBJECT.jump();
-	} else if(keyCode === 13) {
+	} else if(keyCode === 13) { // shoot
 		player.OBJECT.shoot();
+	} else if(keyCode === 69) { // use skill (bomb)
+		player.OBJECT.throwBomb();
 	} else {
 		player.OBJECT.useItem(keyCode)
 	}
