@@ -5,7 +5,7 @@ _Game: https://github.com/olchyk98/js-monsterstrike_
 
 My simple retro game on javascript.
 
-*One day engineers were able to open the portal in a parallel world. When they discovered it,
+*One day engineers have opened the portal in a parallel world. When they discovered it,
 many disasters have occurred. It turned out that monsters from the parallel world do not develop in the vector of science.
 They developed their strength and speed.
 They were ready to invade other creatures. And now their time has come.
