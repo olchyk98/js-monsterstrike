@@ -1963,11 +1963,11 @@ class Mage extends Hero {
 	render() {
 		// Display hp and items
 
-		// TODO: Action animations
 		// Draw model
 		let a = this.models[this.status][this.frame];
+		if(!a) return;
 
-		if(a && a.height > this.height) {
+		if(a.height > this.height) {
 			this.pos.y -= a.height - this.height;
 		}
 		this.height = a.height;
@@ -2937,7 +2937,7 @@ class Item extends Element {
 			map.forEach(io => io.forEach(({ object }) => {
 				if(e) return;
 
-				if( // XXX
+				if(
 					object &&
 					object.pos.x === d.pos.x &&
 					object.pos.y === d.pos.y - d.size
