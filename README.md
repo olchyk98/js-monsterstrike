@@ -12,7 +12,7 @@ They were ready to invade other creatures. And now their time has come.
 The people who survived are fighting with them. One of them - our hero, one of the engineers who opened the portal.
 Realizing the situation and using the medicine that he found the lab, he got some good skills.*
 
-**PSss. In the game there are things that appear randomly to help you.**
+**PSss. In the game there are items that appear randomly to help you.**
 
 It's commonplace, but I like it :)
 
