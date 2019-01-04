@@ -1,25 +1,20 @@
 {
-  "dependencies": {
-    "express": "^4.16.4",
-    "ws": "^6.1.2"
-  },
-  "name": "lavagame-local",
-  "description": "]",
-  "version": "0.0.1",
-  "main": "index.js",
-  "devDependencies": {},
+  "name": "lavaadventures",
+  "version": "1.0.0",
+  "description": "My simple pixel canvas javascript game.",
+  "main": "p5.min.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/olchyk98/js-lavagame.git"
+    "url": "git+https://github.com/olchyk98/lavaadventures.git"
   },
-  "author": "oles",
+  "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/olchyk98/js-lavagame/issues"
+    "url": "https://github.com/olchyk98/lavaadventures/issues"
   },
-  "homepage": "https://github.com/olchyk98/js-lavagame#readme"
+  "homepage": "https://github.com/olchyk98/lavaadventures#readme"
 }
