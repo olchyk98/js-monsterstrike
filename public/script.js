@@ -614,7 +614,7 @@ const maps = [ // 5 maps
 	{ // 2. Cosvidel
 		/*
 			When the portal was opened a lot of catastrofes happend.
-			One of them was that Plane crashed on the shorelines of the Amazon.
+			One of them was that plane crashed on the shorelines of the Amazon.
 			So, there are a lot of monsters which you have to fight.
 		*/
 		map: [
@@ -632,7 +632,7 @@ const maps = [ // 5 maps
 	{ // 3. Crash
 		/*
 			Place at the portal opening. Everything was destroyed here. Be careful!
-			- Don't use the block with lava.
+			- Don't use the big block with lava.
 		*/
 		map: [
 			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0],
@@ -663,7 +663,7 @@ const maps = [ // 5 maps
 	{ // 5. 23 June
 		/*
 			Splited arena.
-			- Enable hook to be able to move around the parts.
+			- Enable hook in the main menu to be able to move around the parts.
 		*/
 		map: [
 			[0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
