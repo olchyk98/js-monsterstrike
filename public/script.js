@@ -44,18 +44,12 @@
 	_1.73 : mute status to localstorage, auto save and restore (+),
 	_1.->75 : fix restart game (+),
 	_1.8 : Add maps (+),
-	_1.8.1 : Add recomendations and information -> maps (+),
+	_1.8.1 : Add recomendations and informations -> maps (+),
 	_1.8.2 : Add map backgrounds (+),
 	_1.9 : Add "throw down a bomb" skill with round delta for the hero (+),
-	_2.0 : Multiplayer mode (Websockets),
-	_2.1 : Migrate to vanilla canvas -> loading progress bar (just init p5js functions again)
+	x : Migrate to vanilla canvas -> loading progress bar (just create p5js functions again)
 
 	-- music : https://www.youtube.com/watch?v=OSPbX0lkTmQ&list=PLpJl5XaLHtLX-pDk4kctGxtF4nq6BIyjg&index=8
-*/
-
-/*	
-	-- PERFORMANCE --
-	VOID: Mage -> run, jump, attack
 */
 
 /*
@@ -69,13 +63,13 @@
 */
 
 let settings = {
-	devTesting: true, // Don't load hard stuff (monsters, music...)
+	devTesting: false, // Don't load hard stuff (monsters, music...)
 	chTesting: false, // Turn on cheats
 	gmTesting: false, // Start game after canvas loading
 	musicOn: true, // default
 	soundsOn: true, // default
 	playerCanHook: true, // default
-	websocketClient: null,
+	gameplayBackground: null,
 	blockSize: 34, // settings.canvas.width / map[0].length
 	canvas: {
 		height: 445, // 445
@@ -560,9 +554,7 @@ let player = {
 	touchableElements = [],
 
 	defaultSession = {
-		isMultiplayer: false,
 		currentSong: null,
-		gameplayBackground: null,
 
 		startTime: 0, // 5s // settings.canvas.FPS * 5
 		monsterMinTime: settings.canvas.FPS, // 1s
@@ -697,14 +689,7 @@ function playSong() {
 	session.currentSong = c;
 }
 
-function sendByWebsocket(object) {
-	if(typeof object !== "object") throw new Error("You should pass object as object parameter for sendByWebsocket function!");
-	if(!settings.websocketClient) throw new Error("Websocket client was not initialized correctly");
-
-	settings.websocketClient.send(JSON.stringify(object));
-}
-
-function start(a, withSong = false) { // move to the setup function
+function start(withSong = false) { // move to the setup function
 	if(!settings.musicOn || settings.devTesting) withSong = false;
 
 	settings.canvas.target.style = `
@@ -712,74 +697,47 @@ function start(a, withSong = false) { // move to the setup function
 		filter:inherit;
 	`;
 
-	if(a && settings.websocketClient) {
-		// send new game request
-	} else if(a) {
-		settings.websocketClient = new WebSocket('ws://localhost:4001');
-		let ws = settings.websocketClient;
+	// New iteration
+	score.iterations++;
 
-		ws.onopen = () => {
-			console.log("Successfully connected to the websocket server.");
+	// Setup session
+	session = Object.assign({}, defaultSession);
 
-			sendByWebsocket({
-				type: "START_GAME",
+	// Setup settings
+	settings.inGame = true;
+	settings.inMenu = false;
 
-			});
-		}
+	monsters.length = monstersID =
+	bullets.length = bulletsID =
+	meteors.length = meteorsID =
+	mbombs.length = mbombsID =
+	hbombs.length = hbombsID =
+	mages.length = magesID =
+	items.length = itemsID = 0;
 
-		ws.onmessage = a => {
-			a = JSON.parse(a);
-			console.log(a);
-		}
+	// Setup itemRefresher
+	itemsRefresh = {
+		started: false,
+		wait: 0,
+		delta: 0
+	}
 
-		ws.onerror = () => {
-			alert("CHECK THE CONSOLE");
-			throw new Error("An error occured while we tried to connect to the websocket server. Maybe it's offline.");
-		}
-	} else {
-		// New iteration
-		score.iterations++;
+	// Setup player
+	player.OBJECT = new Player;
 
-		// Setup session
-		session = Object.assign({}, defaultSession);
+	if(withSong) { // Setup background song
+		playSong();
+	}
 
-		// Setup settings
-		settings.inGame = true;
-		settings.inMenu = false;
-		session.isMultiplayer = a;
+	// Build random map
+	{
+		let a = maps,
+			b = a[floor(random(a.length))];
 
-		monsters.length = monstersID =
-		bullets.length = bulletsID =
-		meteors.length = meteorsID =
-		mbombs.length = mbombsID =
-		hbombs.length = hbombsID =
-		mages.length = magesID =
-		items.length = itemsID = 0;
-
-		// Setup itemRefresher
-		itemsRefresh = {
-			started: false,
-			wait: 0,
-			delta: 0
-		}
-
-		// Setup player
-		player.OBJECT = new Player;
-
-		if(withSong) { // Setup background song
-			playSong();
-		}
-
-		// Build random map
-		{
-			let a = maps,
-				b = a[floor(random(a.length))];
-
-			map = b.map;
-			session.gameplayBackground = Object.values(settings.gameAssets).find(io => io.id === b.backgroundID).model;
-			// session.gameplayBackground = a[4].background;
-			// map = a[4].map;
-		}
+		map = b.map;
+		settings.gameplayBackground = Object.values(settings.gameAssets).find(io => io.id === b.backgroundID).model;
+		// settings.gameplayBackground = a[4].background;
+		// map = a[4].map;
 	}
 
 	// DEV
@@ -1513,8 +1471,8 @@ class Bullet extends Element {
 		this.rangeX = rangeX;
 		this.ranged = 0;
 
-		this.pos = pos || { x: 0, y: 0 }
-		this.direction = dir || { x: 1, y: 0 }
+		this.pos = pos || { x: 0, y: 0 };
+		this.direction = dir || { x: 1, y: 0 };
 
 		this.speed = speed;
 	}
@@ -1652,7 +1610,7 @@ class HBomb extends Element {
 		this.range = settings.gameAssets.HERO_BOMB.range;
 
 		this.size = 25;
-		this.damage = a.damage;
+		this.damage = settings.gameAssets.HERO_BOMB.damage;
 	}
 
 	render() {
@@ -2862,7 +2820,7 @@ window.Bird = class Bird extends Element {
 				);
 
 				if(a) {
-					this.kill();
+					this.kill(false);
 					a.destroy();
 				}
 			}
@@ -2876,7 +2834,7 @@ window.Bird = class Bird extends Element {
 			(this.dir.x === -1 && this.pos.x + this.size < 0) ||
 			(this.dir.x === 1 && this.pos.x > settings.canvas.width)
 		) {
-			this.kill();
+			this.kill(true);
 		}
 
 		return this;
@@ -2915,8 +2873,9 @@ window.Bird = class Bird extends Element {
 		));
 	}
 
-	kill() {
-		player.OBJECT.pushScore(scoreDef.MONSTER_KILL);
+	kill(a = true) { // a - outborder
+		if(!a) player.OBJECT.pushScore(scoreDef.MONSTER_KILL);
+
 		monsters.splice(monsters.findIndex(io => io.id === this.id), 1);
 	}
 }
@@ -3369,18 +3328,15 @@ function draw() {
 					playSound(settings.sounds.SELECT.audio);
 				}
 			},
-			{ // Multiplayer mode
+			{ // Adventure
 				placeID: 1,
-				title: "Multiplayer",
+				title: "Adventure",
 				color: "#E76E55",
 				type: "MENU",
 				onClick: () => {
-					start(true, true);
-					playSound(settings.sounds.SELECT.audio);
-
-					// alert("CHECK THE CONSOLE");
-					// console.warn("Multiplayer mode is not supported yet. You can contact me if you want to help.");
-					// console.error("Stop(0)");
+					alert("CHECK THE CONSOLE");
+					console.warn("Adventure mode is not supported yet. You can contact me if you want to help.");
+					console.error("Stop(0)");
 				}
 			},
 			{ // toggle sounds
@@ -3513,7 +3469,7 @@ function draw() {
 		});
 	} else { // draw game
 		// Background
-		image(session.gameplayBackground, 0, 0, settings.canvas.width, settings.canvas.height);
+		image(settings.gameplayBackground, 0, 0, settings.canvas.width, settings.canvas.height);
 
 		// Draw start time
 		if(session.startTime) {
@@ -3753,7 +3709,7 @@ function mousePressed() {
 			y: mouseY
 		}
 	} else if(!settings.inMenu && !settings.inGame) {
-		start(session.isMultiplayer, false);
+		start(false);
 	}
 }
 
