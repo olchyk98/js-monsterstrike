@@ -884,7 +884,7 @@ if(settings.chTesting) {
 	window.___STARTRAGE = window.___STOPRAGE =
 	window.___NEXTITERATION = window.___PUSHSCORE =
 	function() {
-		return console.warn("Cheats are not available when chTesting constant equals false.");
+		return console.warn("Cheats are not available when chTesting constant equals true.");
 	}
 }
 
