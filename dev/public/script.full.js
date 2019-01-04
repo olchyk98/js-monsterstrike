@@ -867,7 +867,7 @@ if(settings.chTesting) {
 
 	window.___NEXTITERATION = function() {
 		if(window.____VALIDATEGAME()) {
-			start();
+			start(false);
 		}
 	}
 
@@ -3300,7 +3300,7 @@ function setup() {
 		}
 	}
 
-	if(settings.gmTesting) start();
+	if(settings.gmTesting) start(false);
 }
 
 function draw() {
@@ -3324,7 +3324,7 @@ function draw() {
 				color: "#92CD41",
 				type: "MENU",
 				onClick: () => {
-					start(false, true);
+					start(true);
 					playSound(settings.sounds.SELECT.audio);
 				}
 			},
