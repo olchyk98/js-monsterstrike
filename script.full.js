@@ -64,7 +64,7 @@
 
 let settings = {
 	devTesting: false, // Don't load hard stuff (monsters, music...)
-	chTesting: false, // Turn on cheats
+	chTesting: true, // Turn on cheats
 	gmTesting: false, // Start game after canvas loading
 	musicOn: true, // default
 	soundsOn: true, // default
