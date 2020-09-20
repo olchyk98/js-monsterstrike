@@ -3741,7 +3741,7 @@ function keyReleased() {
 
 	if(!player.OBJECT) return;
 
-	if([65, 68].includes(keyCode)) {
+	if((player.OBJECT.direction === -1 && keyCode === 65) || (player.OBJECT.direction === 1 && keyCode === 68)) {
 		player.OBJECT.controlPos(0);
 	}
 }
