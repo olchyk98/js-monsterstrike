@@ -18,5 +18,7 @@ It's commonplace, but I like it :)
 
 _Game: https://olchyk98.github.io/js-monsterstrike/_
 
-![preview](http://i.piccy.info/i9/f4a00bde0768d0b900c3b9b7a14d33b6/1546636456/61946/1292922/2.png "Main menu preview")
-![preview](http://i.piccy.info/i9/b0a8d22ce026ae0fc833694a282a8644/1546636447/207746/1292922/1.png "Gameplay preview")
+## Demo (Hello from 2024)
+
+https://github.com/user-attachments/assets/82597893-9791-444d-91e1-60c3d79d5002
+
